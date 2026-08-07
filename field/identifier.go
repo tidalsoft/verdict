@@ -34,10 +34,10 @@ const (
 	// SchemeBIC validates ISO 9362 structure (no check digit).
 	SchemeBIC Scheme = "bic"
 	// SchemeISO4217 validates membership in the versioned ISO 4217
-	// currency table (verdict/tables.CurrencyTable).
+	// currency table (tables.CurrencyTable).
 	SchemeISO4217 Scheme = "iso4217"
 	// SchemeISO3166Alpha2 validates membership in the versioned ISO
-	// 3166-1 alpha-2 country table (verdict/tables.CountryTable).
+	// 3166-1 alpha-2 country table (tables.CountryTable).
 	SchemeISO3166Alpha2 Scheme = "iso3166_alpha2"
 )
 

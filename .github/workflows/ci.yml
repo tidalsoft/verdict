@@ -1,0 +1,56 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+# Every step below invokes a Makefile target. `make check` is the canonical
+# gate; CI must not re-implement it as a parallel set of shell loops -- if CI
+# and `make check` ever disagree about what "passing" means, the Makefile is
+# what's wrong.
+
+jobs:
+  ci:
+    name: build, vet, lint, test, coverage
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.26.x"
+          cache: true
+
+      - name: Build
+        run: make build
+
+      - name: Vet
+        run: make vet
+
+      - name: Install golangci-lint (pinned)
+        run: go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2
+
+      - name: Lint
+        run: make lint
+
+      - name: Unit tests (race)
+        run: make test RACE=1
+
+      - name: Integration tests (race)
+        run: make test-integration RACE=1
+
+      - name: Install go-test-coverage (pinned)
+        run: go install github.com/vladopajic/go-test-coverage/v2@v2.19.0
+
+      - name: Coverage (enforced gate)
+        run: make cover
+
+      - name: Upload coverage profile
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-profile
+          path: coverage/cover.out
+          if-no-files-found: error

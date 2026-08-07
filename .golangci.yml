@@ -1,0 +1,114 @@
+version: "2"
+
+run:
+  timeout: 5m
+
+linters:
+  default: none
+  enable:
+    # Correctness / bugs.
+    - errcheck # "Errors are values" -- never silently discard a returned error.
+    - govet
+    - staticcheck
+    - ineffassign
+    - unused
+    - gocritic # bug/perf/style diagnostics beyond staticcheck's set
+    - bodyclose # unclosed HTTP response bodies -- belt-and-braces; see depguard below
+    - sqlclosecheck # unclosed sql.Rows/Stmt -- belt-and-braces; see depguard below
+    - gosec # security-relevant static analysis
+    - copyloopvar
+    - noctx
+    - errorlint # correct use of the Go 1.13+ error-wrapping scheme (%w, errors.Is/As)
+    - depguard # mechanical enforcement of the module's purity invariant -- see settings below
+
+    # Engineering principles this module inherits from Gatepost's CLAUDE.md
+    # that a linter can check.
+    - revive # exported-identifier doc comments, naming, package comments
+    - gochecknoglobals # "No package-level state"
+    - gochecknoinits # "No init() functions"
+    - unparam # unused function parameters/results -- keeps exported surface honest
+
+  settings:
+    revive:
+      rules:
+        - name: exported
+          disabled: false
+        - name: package-comments
+          disabled: false
+        - name: error-strings
+          disabled: false
+        - name: error-naming
+          disabled: false
+        - name: indent-error-flow
+          disabled: false
+        - name: unreachable-code
+          disabled: false
+
+    staticcheck:
+      checks:
+        - all
+
+    govet:
+      enable:
+        - shadow
+
+    gocritic:
+      disabled-checks:
+        - ifElseChain # stylistic; not worth fighting the expression-language switch logic over
+
+    # This module is a pure evaluation library (see doc.go): no network, no
+    # filesystem, no I/O anywhere in the evaluation path. Gatepost's monorepo
+    # enforced the analogous invariant with a depguard rule denying imports
+    # of its own platform packages; here there is no platform package to
+    # name, so the rule instead denies direct imports of the standard-library
+    # packages a pure library must never need. Each is denied by exact
+    # package path (no files restriction, so the rule applies repo-wide):
+    #
+    #   net, net/http    -- network access
+    #   os, os/exec      -- filesystem access and process execution
+    #   io/ioutil        -- filesystem access (legacy alias for os/io)
+    #   path/filepath    -- filesystem path manipulation implies filesystem use
+    #   database/sql     -- I/O
+    #
+    # fmt legitimately pulls in os transitively (for os.Stdout et al. in
+    # Fprint*), so this denies direct imports only -- depguard has no notion
+    # of transitive denial, which is the correct behaviour here: banning
+    # fmt to chase that would be absurd, and the standard library's own
+    # transitive dependency graph is not this module's concern.
+    depguard:
+      rules:
+        purity:
+          deny:
+            - pkg: "net$"
+              desc: "this module is a pure evaluation library and must not perform network access (see doc.go)"
+            - pkg: "net/"
+              desc: "this module is a pure evaluation library and must not perform network access (see doc.go)"
+            - pkg: "os$"
+              desc: "this module is a pure evaluation library and must not perform filesystem or process access (see doc.go)"
+            - pkg: "os/exec$"
+              desc: "this module is a pure evaluation library and must not execute processes (see doc.go)"
+            - pkg: "io/ioutil$"
+              desc: "this module is a pure evaluation library and must not perform filesystem access (see doc.go)"
+            - pkg: "path/filepath$"
+              desc: "this module is a pure evaluation library and must not manipulate filesystem paths (see doc.go)"
+            - pkg: "database/sql$"
+              desc: "this module is a pure evaluation library and must not perform I/O (see doc.go)"
+
+  exclusions:
+    rules:
+      # Table-driven conformance tests (SPEC-MU/SPEC-PG vectors) are data, not
+      # public API; doc-comment and naming strictness on _test.go files would
+      # fight the fixture style those tests need without buying anything.
+      # gochecknoglobals is excluded too: the table of conformance vectors
+      # (e.g. `var conformanceVectors = []struct{...}{...}`) is the idiomatic
+      # Go form for a table-driven test and not "state" in the sense the
+      # linter exists to catch.
+      - path: _test\.go
+        linters:
+          - revive
+          - gochecknoglobals
+
+formatters:
+  enable:
+    - gofmt
+    - goimports

@@ -1,7 +1,7 @@
 // Package field defines the typed per-field declaration a ruleset supplies
 // for a single argument path (SPEC-MU §2.3) -- the schema Class D checks
 // (MU-*, tasks 1-4..1-7) evaluate an argument against, as opposed to the
-// versioned reference data (verdict/tables) those checks also consult.
+// versioned reference data (tables) those checks also consult.
 //
 // # Absence is not a default
 //

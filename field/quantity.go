@@ -3,7 +3,7 @@ package field
 import (
 	"errors"
 
-	"github.com/tidalsoft/gatepost/verdict/decimal"
+	"github.com/tidalsoft/verdict/decimal"
 )
 
 // QuantityDeclaration is the field declaration for `kind: quantity`

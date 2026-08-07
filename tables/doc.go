@@ -13,7 +13,7 @@
 // binary as ordinary Go source rather than loaded from a file or fetched
 // at runtime. That source is itself generated, not hand-transcribed, from
 // a committed snapshot of an external authority -- see
-// verdict/tables/generate/iso4217 and verdict/tables/generate/iso3166 for
+// tables/generate/iso4217 and tables/generate/iso3166 for
 // exactly what was fetched, when, and how each generator turns it into the
 // *_data.go file it produces. Regenerating a table means re-running the
 // relevant generator against a freshly fetched source, never hand-editing

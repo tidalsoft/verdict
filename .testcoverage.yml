@@ -1,0 +1,13 @@
+# Config for github.com/vladopajic/go-test-coverage/v2 (pinned version: see
+# Makefile `cover` target and .github/workflows/ci.yml -- no @latest).
+#
+# 100% file/package/total coverage, with no exclusions of any kind. This
+# module has no binaries (Gatepost's cmd/*/main.go carve-out does not apply
+# here), so there is nothing that legitimately cannot be exercised
+# in-process; the bar applies everywhere.
+profile: coverage/cover.out
+
+threshold:
+  file: 100
+  package: 100
+  total: 100

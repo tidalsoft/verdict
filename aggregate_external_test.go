@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/tidalsoft/gatepost/verdict"
+	"github.com/tidalsoft/verdict"
 )
 
 // TestComputeAggregate_ExternalReproductions lives in the black-box
