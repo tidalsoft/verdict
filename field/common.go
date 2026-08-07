@@ -3,7 +3,7 @@ package field
 import "fmt"
 
 // NullSemantics distinguishes how a field treats an explicit JSON null from
-// an omitted field (SPEC-MU MU-08 null_vs_absent).
+// an omitted field (MU-08 null_vs_absent).
 type NullSemantics int
 
 const (
@@ -14,12 +14,12 @@ const (
 	// NullSemanticsDistinct marks a field where an explicit null and an
 	// omitted field carry different meanings to the target system
 	// (typically: omitted means "leave unchanged", null means "clear the
-	// value"). It is the only value SPEC-MU §2.3 names.
+	// value"). It is the only defined value.
 	NullSemanticsDistinct
 )
 
-// String renders the null-semantics value using the vocabulary SPEC-MU
-// §2.3 uses (`null_semantics: distinct`).
+// String renders the null-semantics value's canonical name
+// (`null_semantics: distinct`).
 func (n NullSemantics) String() string {
 	if n == NullSemanticsDistinct {
 		return "distinct"
@@ -31,8 +31,8 @@ func (n NullSemantics) valid() bool {
 	return n == NullSemanticsDistinct
 }
 
-// common holds the one declaration attribute SPEC-MU §2.3 does not scope
-// to a single Kind (see the package doc comment). It is embedded, never
+// common holds the one declaration attribute that is not scoped to a
+// single Kind (see the package doc comment). It is embedded, never
 // used as a standalone value, by every concrete Declaration type in this
 // package.
 type common struct {

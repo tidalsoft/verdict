@@ -9,7 +9,7 @@ import (
 
 // Scale distinguishes whether a money field's numeric value is expressed
 // in a currency's minor units (e.g. cents) or its major units (e.g.
-// dollars) (SPEC-MU MU-01 scale_declaration_conflict).
+// dollars) (MU-01 scale_declaration_conflict).
 type Scale int
 
 const (
@@ -25,8 +25,7 @@ const (
 	ScaleMajorUnits
 )
 
-// String renders the scale using the vocabulary SPEC-MU §2.3's YAML
-// example uses.
+// String renders the scale's canonical name.
 func (s Scale) String() string {
 	switch s {
 	case ScaleMinorUnits:
@@ -42,7 +41,7 @@ func (s Scale) valid() bool {
 	return s == ScaleMinorUnits || s == ScaleMajorUnits
 }
 
-// Sign is the permitted sign of a money field's value (SPEC-MU MU-06
+// Sign is the permitted sign of a money field's value (MU-06
 // sign_convention).
 type Sign int
 
@@ -62,8 +61,7 @@ const (
 	SignAny
 )
 
-// String renders the sign using the vocabulary SPEC-MU §2.3's YAML example
-// uses.
+// String renders the sign's canonical name.
 func (s Sign) String() string {
 	switch s {
 	case SignPositive:
@@ -83,7 +81,7 @@ func (s Sign) valid() bool {
 
 // ConditionalSign pairs a condition -- another field at the same argument
 // level equalling a specific value -- with the Sign required when that
-// condition holds (SPEC-MU MU-06's sign_when form, e.g. "when
+// condition holds (MU-06's sign_when form, e.g. "when
 // arguments.type is refund, sign must be negative").
 type ConditionalSign struct {
 	whenField string
@@ -115,7 +113,7 @@ func (c ConditionalSign) WhenValue() string { return c.whenValue }
 // Sign returns the sign required when this condition matches.
 func (c ConditionalSign) Sign() Sign { return c.sign }
 
-// MoneyDeclaration is the field declaration for `kind: money` (SPEC-MU §3).
+// MoneyDeclaration is the field declaration for `kind: money`.
 // Its zero value, produced by NewMoneyDeclaration, declares nothing beyond
 // the kind itself -- every attribute accessor's second return value is
 // false until the corresponding With* method is called.
@@ -189,7 +187,7 @@ func (d MoneyDeclaration) ExclusiveMin() bool { return d.exclusiveMin }
 // itself. Meaningless (and false) when Max was never declared.
 func (d MoneyDeclaration) ExclusiveMax() bool { return d.exclusiveMax }
 
-// Nonzero reports whether a declared Sign forbids zero (SPEC-MU MU-06:
+// Nonzero reports whether a declared Sign forbids zero (MU-06:
 // "Zero is permitted under both positive and negative unless nonzero: true
 // is also declared").
 func (d MoneyDeclaration) Nonzero() bool { return d.nonzero }
@@ -270,8 +268,8 @@ func (d MoneyDeclaration) WithNonzero() MoneyDeclaration {
 	return d
 }
 
-// WithNullSemantics declares the field's null-vs-absent handling (SPEC-MU
-// MU-08). n must be NullSemanticsDistinct.
+// WithNullSemantics declares the field's null-vs-absent handling (MU-08).
+// n must be NullSemanticsDistinct.
 func (d MoneyDeclaration) WithNullSemantics(n NullSemantics) (MoneyDeclaration, error) {
 	c, err := d.withNullSemantics(n)
 	if err != nil {

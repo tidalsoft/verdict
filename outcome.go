@@ -1,16 +1,15 @@
 package verdict
 
-// Outcome is the three-valued result of evaluating a single check or gate
-// (SPEC-MU §2.1, SPEC-PG §2.1).
+// Outcome is the three-valued result of evaluating a single check or gate.
 //
 // The zero value is OutcomeIndeterminate, not OutcomePass. This is
 // deliberate: a zero-initialized Outcome -- a struct field left unset by a
 // bug, a map lookup miss, a variable declared but not yet assigned -- must
 // read as "not evaluated," which is the safe interpretation, never as
-// "evaluated and found nothing wrong." Reporting success while having
-// verified nothing is the specific silent-failure mode that both SPEC-MU
-// §2.1 and SPEC-PG §2.1 (which calls the equivalent rule "the single most
-// important requirement in this document") exist to prevent.
+// "evaluated and found nothing wrong." A result that was never evaluated
+// must not read as success: reporting success while having verified
+// nothing is the specific silent-failure mode this type exists to
+// prevent.
 type Outcome int
 
 const (
@@ -26,10 +25,10 @@ const (
 	OutcomeFail
 )
 
-// String renders the outcome using the vocabulary from SPEC-MU §2.1 /
-// SPEC-PG §2.1. An out-of-range value (only reachable via an explicit
-// conversion such as Outcome(7)) renders as "UNKNOWN_OUTCOME" rather than
-// panicking, since fmt.Stringer implementations must not panic.
+// String renders the outcome's canonical name. An out-of-range value (only
+// reachable via an explicit conversion such as Outcome(7)) renders as
+// "UNKNOWN_OUTCOME" rather than panicking, since fmt.Stringer
+// implementations must not panic.
 func (o Outcome) String() string {
 	switch o {
 	case OutcomeIndeterminate:

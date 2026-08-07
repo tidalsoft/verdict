@@ -3,7 +3,7 @@ package verdict
 import "fmt"
 
 // Verdict is the request-level decision computed from every Result an
-// evaluation produced (SPEC-MU §2.1, SPEC-PG §2.1-2.2).
+// evaluation produced.
 type Verdict int
 
 const (
@@ -20,7 +20,7 @@ const (
 	VerdictAllow
 )
 
-// String renders the verdict using the vocabulary from SPEC-MU §2.1.
+// String renders the verdict's canonical name.
 func (v Verdict) String() string {
 	switch v {
 	case VerdictDeny:
@@ -44,13 +44,12 @@ const (
 	// qualification beyond the block-severity FAIL(s) that caused it.
 	DenyReasonNone DenyReason = iota
 	// DenyReasonInsufficientEvidence marks a deny produced by ModeStrict
-	// encountering a block-severity INDETERMINATE rather than any FAIL
-	// (SPEC-PG §2.2).
+	// encountering a block-severity INDETERMINATE rather than any FAIL.
 	DenyReasonInsufficientEvidence
 )
 
-// String renders the deny reason using the machine-readable token from
-// SPEC-PG §2.2. DenyReasonNone renders as the empty string, reflecting
+// String renders the deny reason as its machine-readable token.
+// DenyReasonNone renders as the empty string, reflecting
 // that it is not itself a reason code -- it means "no further reason
 // beyond the FAIL(s) already reported."
 func (d DenyReason) String() string {
@@ -79,7 +78,7 @@ type Aggregate struct {
 }
 
 // ComputeAggregate derives the request-level Aggregate from every Result an
-// evaluation produced, exactly per SPEC-MU §2.1 and SPEC-PG §2.1-2.2:
+// evaluation produced:
 //
 //   - VerdictDeny if any Result is OutcomeFail at SeverityBlock, or, only
 //     under ModeStrict, any Result is OutcomeIndeterminate at

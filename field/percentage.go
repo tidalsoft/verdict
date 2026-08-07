@@ -3,7 +3,7 @@ package field
 import "fmt"
 
 // Domain distinguishes a fractional (0-1) percentage representation from a
-// hundred-scaled (0-100) one (SPEC-MU MU-13 percentage_domain).
+// hundred-scaled (0-100) one (MU-13 percentage_domain).
 type Domain int
 
 const (
@@ -17,8 +17,7 @@ const (
 	DomainHundred
 )
 
-// String renders the domain using the vocabulary SPEC-MU §2.3's YAML
-// example uses.
+// String renders the domain's canonical name.
 func (d Domain) String() string {
 	switch d {
 	case DomainUnitInterval:
@@ -35,7 +34,7 @@ func (d Domain) valid() bool {
 }
 
 // PercentageDeclaration is the field declaration for `kind: percentage`
-// (SPEC-MU MU-13). Its zero value, produced by NewPercentageDeclaration,
+// (MU-13). Its zero value, produced by NewPercentageDeclaration,
 // declares nothing beyond the kind itself.
 type PercentageDeclaration struct {
 	common
@@ -69,8 +68,8 @@ func (d PercentageDeclaration) WithDomain(dom Domain) (PercentageDeclaration, er
 	return d, nil
 }
 
-// WithNullSemantics declares the field's null-vs-absent handling (SPEC-MU
-// MU-08). n must be NullSemanticsDistinct.
+// WithNullSemantics declares the field's null-vs-absent handling (MU-08).
+// n must be NullSemanticsDistinct.
 func (d PercentageDeclaration) WithNullSemantics(n NullSemantics) (PercentageDeclaration, error) {
 	c, err := d.withNullSemantics(n)
 	if err != nil {

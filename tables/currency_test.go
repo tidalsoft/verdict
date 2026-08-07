@@ -21,7 +21,7 @@ func TestCurrencyTable_Lookup_ExponentClasses(t *testing.T) {
 		code         string
 		wantExponent int32
 	}{
-		// SPEC-MU MU-14's named examples for each exponent class.
+		// MU-14's named examples for each exponent class.
 		{"JPY exponent 0", "JPY", 0},
 		{"KRW exponent 0", "KRW", 0},
 		{"VND exponent 0", "VND", 0},

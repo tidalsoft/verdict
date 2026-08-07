@@ -2,8 +2,8 @@
 
 // Command iso4217gen regenerates tables/currency_data.go from the
 // ISO 4217 "Current currency & funds code list" (Table A.1), the primary
-// source for ISO 4217 currency codes and minor-unit exponents (SPEC-MU
-// MU-14). The ISO 4217 Maintenance Agency delegates distribution of this
+// source for ISO 4217 currency codes and minor-unit exponents (MU-14).
+// The ISO 4217 Maintenance Agency delegates distribution of this
 // list, in machine-readable XML, to SIX Group:
 //
 //	https://www.six-group.com/dam/download/financial-information/data-center/iso-currrency/lists/list-one.xml
@@ -21,9 +21,8 @@
 // This program is excluded from the module's ordinary build, vet, lint, and
 // coverage runs by the go:build tag above: it is a build-time source
 // generator that reads a file and writes a file, which the pure evaluation
-// engine it feeds (CLAUDE.md invariant #3 -- no filesystem access in
-// verdict/) must never do. Run it explicitly with `go run`, not `go build
-// ./...` or `go test ./...`.
+// engine it feeds must never do (no filesystem access in verdict/). Run it
+// explicitly with `go run`, not `go build ./...` or `go test ./...`.
 package main
 
 import (
@@ -43,8 +42,8 @@ const (
 
 // isoTable mirrors the subset of list-one.xml's structure this program
 // needs. The Pblshd attribute is the Maintenance Agency's own publication
-// date for the list, which becomes this table's reported version
-// (SPEC-MU §7.2, §9) -- not a date this program invents.
+// date for the list, which becomes this table's reported version -- not a
+// date this program invents.
 type isoTable struct {
 	XMLName xml.Name   `xml:"ISO_4217"`
 	Pblshd  string     `xml:"Pblshd,attr"`
@@ -103,8 +102,8 @@ func run() error {
 	return nil
 }
 
-// tableVersion derives the "YYYY-MM" version SPEC-MU §7.2's example uses
-// (`"iso4217": "2026-01"`) from the XML's full "YYYY-MM-DD" Pblshd date.
+// tableVersion derives the "YYYY-MM" version this table reports (e.g.
+// "2026-01") from the XML's full "YYYY-MM-DD" Pblshd date.
 func tableVersion(pblshd string) (string, error) {
 	if len(pblshd) < 7 {
 		return "", fmt.Errorf("Pblshd %q is too short to derive a YYYY-MM version", pblshd)
@@ -168,7 +167,7 @@ func renderSource(pblshd, version string, rows []row) ([]byte, error) {
 	fmt.Fprintf(&b, "package tables\n\n")
 	fmt.Fprintf(&b, "// iso4217Version is ISO 4217 Table A.1's own publication date (the XML\n")
 	fmt.Fprintf(&b, "// root element's Pblshd attribute, %q), truncated to the \"YYYY-MM\" form\n", pblshd)
-	fmt.Fprintf(&b, "// SPEC-MU §7.2's example response uses.\n")
+	fmt.Fprintf(&b, "// used to report this table's version.\n")
 	fmt.Fprintf(&b, "const iso4217Version = %q\n\n", version)
 	fmt.Fprintf(&b, "// iso4217Rows returns the compiled-in ISO 4217 currency & funds code list.\n")
 	fmt.Fprintf(&b, "// It returns a fresh slice on every call rather than sharing one across\n")

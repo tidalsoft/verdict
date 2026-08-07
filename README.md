@@ -1,18 +1,14 @@
 # verdict
 
-`github.com/tidalsoft/verdict` is the open-source evaluation engine and rule
-catalogue behind [Gatepost](https://github.com/tidalsoft/gatepost): a
-deterministic validation library for AI agent tool calls, covering
-magnitude/unit checks (SPEC-MU), precondition gates (SPEC-PG §3-5), and
-postcondition checks (SPEC-PG §6).
+`github.com/tidalsoft/verdict` is a deterministic evaluation engine for AI
+agent tool calls: magnitude/unit checks, precondition gates, and
+postcondition checks over a request's declared schema.
 
 It is a **pure library**: no network access, no filesystem access, and no
 wall-clock reads anywhere in the evaluation path. A verdict is a function of
 the request, the active ruleset, and any reference tables supplied to it —
 the only notion of "now" it accepts is an evaluation timestamp passed in by
-the caller. Gatepost (proprietary, closed-source) imports this module to run
-its hosted validation service; you can import it directly to embed the same
-evaluation logic anywhere else.
+the caller.
 
 This module provides:
 
@@ -62,11 +58,11 @@ func main() {
 }
 ```
 
-`Result` and `ComputeAggregate` are the vocabulary; this module does not ship
-the MU-*/PG-* check implementations, the state envelope, or response
-serialization — those, along with the measurement and promotion lifecycle,
-are Gatepost's proprietary hosted service. See
-[Gatepost](https://github.com/tidalsoft/gatepost) if you want a running
+`Result` and `ComputeAggregate` are the vocabulary this library exposes;
+specific check implementations named by rule ID (`MU-*`, `PG-*`) are
+provided by code that imports this library, not by this module itself.
+[Gatepost](https://github.com/tidalsoft/gatepost), a hosted service from
+Tidalsoft, implements this library in production if you want a running
 service rather than a library to build one on.
 
 ## License
@@ -77,16 +73,15 @@ Tidalsoft.
 ## Rule ID namespace and conformance
 
 The `MU-`, `PG-`, and `PC-` rule ID prefixes are reserved to the
-specification maintainer. An implementation may claim conformance with
-SPEC-MU or SPEC-PG only by passing the published conformance test suite —
-see SPEC-SYS §14.5. Forks are welcome to add rules, but under their own
-prefix, so that fleet-scale measurement data keyed by rule ID stays
-comparable across implementations.
+specification maintainer. An implementation may claim conformance with the
+MU or PG rule sets only by passing the published conformance test suite.
+Forks are welcome to add rules, but under their own prefix, so that
+fleet-scale measurement data keyed by rule ID stays comparable across
+implementations.
 
 This README makes no benchmark or efficacy claims (e.g. false-positive
 rates, precision, or "gates improve success by X%") because none of that
-measurement work has been run and published yet. See SPEC-EVAL for the
-methodology such claims would need to satisfy before they are made.
+measurement work has been run and published for this code.
 
 ## Contributing
 

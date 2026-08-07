@@ -1,8 +1,8 @@
 # Security Policy
 
-This engine and rule catalogue are published under Apache 2.0 (SPEC-SYS
-§14.5), so vulnerability reports will arrive whether or not there is a
-process for them. This document is that process.
+This engine and rule catalogue are published under Apache 2.0, so
+vulnerability reports will arrive whether or not there is a process for
+them. This document is that process.
 
 ## Reporting a vulnerability
 
@@ -38,8 +38,8 @@ Out of scope:
 - **Coordinated disclosure**, with a default embargo of **90 days** from
   acknowledgement, negotiable in either direction depending on complexity
   and severity. Because this repository has no supported self-host
-  distribution (community self-hosting is unsupported per SPEC-SYS §14.5),
-  a fix ships as a release with a changelog entry — that changelog is the
+  distribution, a fix ships as a release with a changelog entry — that
+  changelog is the
   only channel that reaches anyone running this code outside the hosted
   service, so we do not disclose before a fix is available to install.
 

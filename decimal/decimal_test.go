@@ -116,8 +116,8 @@ func TestDecimal_SignAndIsZero(t *testing.T) {
 	}
 
 	// The zero value, never touched by Parse, must also be a valid decimal
-	// zero -- CLAUDE.md's constructor-invariant principle applied to a type
-	// whose zero value is meaningful.
+	// zero -- this type's zero value is meaningful in its own right, not a
+	// sentinel for "not yet constructed."
 	var zero Decimal
 	if !zero.IsZero() {
 		t.Errorf("zero value Decimal.IsZero() = false, want true")
@@ -394,8 +394,8 @@ func TestDecimal_ScaleByExponent_AdjustedExponentBoundary(t *testing.T) {
 }
 
 // TestDecimal_RangeBound_MinorUnitsNeverFloat exercises the MU-07 comparison
-// SPEC-MU §3 requires: "comparison for kind: money is performed in minor
-// units after normalisation, never in floating point." It also demonstrates
+// requirement: "comparison for kind: money is performed in minor units
+// after normalisation, never in floating point." It also demonstrates
 // why that matters -- a boundary amount that a float64-based comparison
 // would get wrong due to binary64 rounding of the scaled value.
 func TestDecimal_RangeBound_MinorUnitsNeverFloat(t *testing.T) {

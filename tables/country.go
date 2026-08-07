@@ -1,6 +1,6 @@
 package tables
 
-// Country is a single ISO 3166-1 alpha-2 entry (SPEC-MU MU-16
+// Country is a single ISO 3166-1 alpha-2 entry (MU-16
 // identifier_checksum's iso3166_alpha2 scheme). Its zero value is not a
 // meaningful country; values are only ever produced by CountryTable.
 // Lookup.
@@ -12,8 +12,8 @@ type Country struct {
 // "CA").
 func (c Country) Code() string { return c.code }
 
-// CountryTable is an immutable, versioned ISO 3166-1 alpha-2 lookup table
-// (SPEC-MU §9). Its zero value is not usable -- construct one with
+// CountryTable is an immutable, versioned ISO 3166-1 alpha-2 lookup table.
+// Its zero value is not usable -- construct one with
 // NewISO3166Alpha2Table. A CountryTable is safe for concurrent use, since
 // nothing about it is ever mutated after NewISO3166Alpha2Table returns.
 type CountryTable struct {
@@ -34,7 +34,7 @@ func (t CountryTable) Version() string { return t.version }
 // calling.
 //
 // A false second return value is what MU-16's iso3166_alpha2 scheme must
-// treat as "unrecognised": SPEC-MU MU-16 requires an unrecognised or
+// treat as "unrecognised": MU-16 requires an unrecognised or
 // unresolvable code to evaluate as INDETERMINATE, never PASS.
 func (t CountryTable) Lookup(code string) (Country, bool) {
 	c, ok := t.byCode[code]

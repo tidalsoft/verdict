@@ -2,8 +2,11 @@ package decimal
 
 import "testing"
 
-// TestPrecisionLoss_ConformanceVectors encodes SPEC-MU §8 vectors 9, 10, and
-// 11 directly. These are the acceptance tests for MU-02 at this layer.
+// TestPrecisionLoss_ConformanceVectors covers the three cases MU-02's
+// precision_loss check must distinguish: a decimal string always passes; a
+// JSON number that isn't exactly representable in binary64 fails; a JSON
+// number whose magnitude exceeds 2^53-1 fails. These are the acceptance
+// tests for MU-02 at this layer.
 func TestPrecisionLoss_ConformanceVectors(t *testing.T) {
 	cases := []struct {
 		vector     int
@@ -27,11 +30,10 @@ func TestPrecisionLoss_ConformanceVectors(t *testing.T) {
 	}
 }
 
-// TestPrecisionLoss_SameValueStringVsJSONNumber is the provenance distinction
-// the task calls out explicitly: the identical numeric value must PASS as a
-// decimal string and FAIL as a JSON number (vectors 9 vs 10 use different
-// values to make the point; this test uses one value both ways to prove the
-// distinction is provenance-driven, not value-driven).
+// TestPrecisionLoss_SameValueStringVsJSONNumber verifies the provenance
+// distinction directly: the identical numeric value must PASS as a decimal
+// string and FAIL as a JSON number, proving the distinction is
+// provenance-driven, not value-driven.
 func TestPrecisionLoss_SameValueStringVsJSONNumber(t *testing.T) {
 	d := mustParse(t, "0.1")
 
@@ -53,7 +55,7 @@ func TestExactlyRepresentableInBinary64(t *testing.T) {
 		{"0", true},                 // zero is exact
 		{"1", true},                 // small integers are exact
 		{"0.1", false},              // classic inexact decimal fraction
-		{"49.99", false},            // vector-adjacent inexact value
+		{"49.99", false},            // typical money amount, inexact in binary64
 		{"-0.5", true},              // negative exactness mirrors positive
 		{"9007199254740992", true},  // 2^53, still exactly representable
 		{"9007199254740993", false}, // 2^53+1, first inexact integer
@@ -95,7 +97,7 @@ func TestExceedsSafeIntegerMagnitude(t *testing.T) {
 		{"-9007199254740991", false},
 		{"9007199254740992", true}, // 2^53, one past the boundary
 		{"-9007199254740992", true},
-		{"9007199254740993", true}, // vector 11
+		{"9007199254740993", true}, // one past 2^53
 		{"0", false},
 		{"49.99", false},
 	}
@@ -110,8 +112,7 @@ func TestExceedsSafeIntegerMagnitude(t *testing.T) {
 }
 
 // TestPrecisionLoss_VeryLargeAndVerySmallMagnitudes exercises magnitudes far
-// outside anything binary64 or the 2^53 ceiling were designed around, per
-// the task's required coverage.
+// outside anything binary64 or the 2^53 ceiling were designed around.
 func TestPrecisionLoss_VeryLargeAndVerySmallMagnitudes(t *testing.T) {
 	tiny := mustParse(t, "0.000000000000000000001")
 	if !PrecisionLoss(tiny, FromJSONNumber) {

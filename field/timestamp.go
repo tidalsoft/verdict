@@ -6,7 +6,7 @@ import (
 )
 
 // Encoding names how a timestamp field's value is represented on the wire
-// (SPEC-MU MU-10 timestamp_encoding).
+// (MU-10 timestamp_encoding).
 type Encoding int
 
 const (
@@ -20,8 +20,7 @@ const (
 	EncodingEpochMillis
 )
 
-// String renders the encoding using the vocabulary SPEC-MU §2.3's YAML
-// example uses.
+// String renders the encoding's canonical name.
 func (e Encoding) String() string {
 	switch e {
 	case EncodingISO8601:
@@ -40,14 +39,14 @@ func (e Encoding) valid() bool {
 }
 
 // TimestampDeclaration is the field declaration for `kind: timestamp`
-// (SPEC-MU MU-10, MU-11). Its zero value, produced by
+// (MU-10, MU-11). Its zero value, produced by
 // NewTimestampDeclaration, declares nothing beyond the kind itself.
 //
 // NotBefore and NotAfter are stored as the raw declared string rather than
-// a parsed instant: SPEC-MU MU-11 permits both absolute values and values
+// a parsed instant: MU-11 permits both absolute values and values
 // relative to the request's evaluation timestamp ("now-5y", "now+90d"),
 // and resolving "now" requires the evaluation timestamp that only exists
-// at check time (task 1-6), not at declaration time.
+// at check time, not at declaration time.
 type TimestampDeclaration struct {
 	common
 
@@ -115,8 +114,8 @@ func (d TimestampDeclaration) WithNotAfter(bound string) (TimestampDeclaration, 
 	return d, nil
 }
 
-// WithNullSemantics declares the field's null-vs-absent handling (SPEC-MU
-// MU-08). n must be NullSemanticsDistinct.
+// WithNullSemantics declares the field's null-vs-absent handling (MU-08).
+// n must be NullSemanticsDistinct.
 func (d TimestampDeclaration) WithNullSemantics(n NullSemantics) (TimestampDeclaration, error) {
 	c, err := d.withNullSemantics(n)
 	if err != nil {

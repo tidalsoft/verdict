@@ -1,6 +1,6 @@
 package tables
 
-// Currency is a single ISO 4217 entry (SPEC-MU MU-14 minor_unit_exponent,
+// Currency is a single ISO 4217 entry (MU-14 minor_unit_exponent,
 // MU-16 identifier_checksum's iso4217 scheme). Its zero value is not a
 // meaningful currency; values are only ever produced by CurrencyTable.
 // Lookup.
@@ -30,8 +30,8 @@ func (c Currency) MinorUnitExponent() (int32, bool) {
 	return c.minorUnitExponent, c.hasMinorUnitExponent
 }
 
-// CurrencyTable is an immutable, versioned ISO 4217 currency lookup table
-// (SPEC-MU §9). Its zero value is not usable -- construct one with
+// CurrencyTable is an immutable, versioned ISO 4217 currency lookup table.
+// Its zero value is not usable -- construct one with
 // NewISO4217Table. A CurrencyTable is safe for concurrent use, since
 // nothing about it is ever mutated after NewISO4217Table returns.
 type CurrencyTable struct {
@@ -50,7 +50,7 @@ func (t CurrencyTable) Version() string { return t.version }
 // calling.
 //
 // A false second return value is what MU-16's iso4217 scheme and MU-03/
-// MU-14's currency resolution must treat as "unrecognised": SPEC-MU MU-16
+// MU-14's currency resolution must treat as "unrecognised": MU-16
 // requires an unrecognised or unresolvable currency to evaluate as
 // INDETERMINATE, never PASS, and never a guessed exponent.
 func (t CurrencyTable) Lookup(code string) (Currency, bool) {

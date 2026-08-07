@@ -6,15 +6,15 @@ import (
 	"github.com/tidalsoft/verdict/decimal"
 )
 
-// QuantityDeclaration is the field declaration for `kind: quantity`
-// (SPEC-MU §4). Its zero value, produced by NewQuantityDeclaration,
-// declares nothing beyond the kind itself.
+// QuantityDeclaration is the field declaration for `kind: quantity`. Its
+// zero value, produced by NewQuantityDeclaration, declares nothing beyond
+// the kind itself.
 //
 // Dimension and CanonicalUnit are plain strings rather than closed enums
-// on purpose: resolving a dimension or unit requires the unit registry
-// (SPEC-MU §4's "Supported dimensions" list; task 1-5), which this package
-// does not have visibility into. This package records what was declared;
-// MU-04/MU-05 decide whether it resolves to anything.
+// on purpose: resolving a dimension or unit requires a unit registry this
+// package does not have visibility into and does not provide. This package
+// records what was declared; MU-04/MU-05 decide whether it resolves to
+// anything.
 type QuantityDeclaration struct {
 	common
 
@@ -59,7 +59,7 @@ func (d QuantityDeclaration) CanonicalUnit() (string, bool) {
 }
 
 // UnitRequired reports whether MU-05 must fail a bare number on this field
-// (SPEC-MU MU-05: `unit_required: true`).
+// (`unit_required: true`).
 func (d QuantityDeclaration) UnitRequired() bool { return d.unitRequired }
 
 // Max returns the declared upper bound on the canonical-unit
@@ -67,10 +67,10 @@ func (d QuantityDeclaration) UnitRequired() bool { return d.unitRequired }
 func (d QuantityDeclaration) Max() (decimal.Decimal, bool) { return d.max, d.hasMax }
 
 // Tolerance returns the declared round-trip tolerance for MU-15's
-// unit_conversion_overflow check, if declared. SPEC-MU §4 defaults this to
-// 1 part in 10^9 when absent -- applying that default is MU-15's
-// responsibility (task 1-5), not this package's, since the default is a
-// check behaviour, not part of what the ruleset declared.
+// unit_conversion_overflow check, if declared. The default (1 part in
+// 10^9 when absent) is applied by MU-15 itself, not this package, since
+// the default is a check behaviour, not part of what the ruleset
+// declared.
 func (d QuantityDeclaration) Tolerance() (decimal.Decimal, bool) { return d.tolerance, d.hasTolerance }
 
 // WithDimension declares the field's physical dimension. dim must be
@@ -128,8 +128,8 @@ func (d QuantityDeclaration) WithTolerance(tolerance decimal.Decimal) QuantityDe
 	return d
 }
 
-// WithNullSemantics declares the field's null-vs-absent handling (SPEC-MU
-// MU-08). n must be NullSemanticsDistinct.
+// WithNullSemantics declares the field's null-vs-absent handling (MU-08).
+// n must be NullSemanticsDistinct.
 func (d QuantityDeclaration) WithNullSemantics(n NullSemantics) (QuantityDeclaration, error) {
 	c, err := d.withNullSemantics(n)
 	if err != nil {

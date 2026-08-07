@@ -10,8 +10,8 @@ import (
 // exactContext builds a fresh, unbounded-precision context for a single
 // operation. Precision 0 disables digit-count rounding entirely (see
 // apd.BaseContext's doc comment: "Disable rounding"), which is what "exact"
-// means here — SPEC-MU MU-12 requires reconciliation arithmetic with no
-// rounding at all. A new context is built on every call rather than shared
+// means here — reconciliation arithmetic (MU-12) requires no rounding at
+// all. A new context is built on every call rather than shared
 // as package state, per this package's "no package-level state" rule (see
 // doc.go).
 func exactContext() *apd.Context {
@@ -34,22 +34,22 @@ type Decimal struct {
 }
 
 // Parse parses s as an exact decimal number. s must be the plain-text
-// decimal-string form SPEC-SYS §5.1 requires for monetary values on the
-// wire (e.g. "49.99", "-10.5", "0"). Malformed text produces a clearly
-// wrapped error; non-finite forms ("NaN", "Infinity", "-Infinity") are
-// rejected too, since neither is a valid monetary or quantity value.
+// decimal-string form used for monetary and quantity values on the wire
+// (e.g. "49.99", "-10.5", "0"). Malformed text produces a clearly wrapped
+// error; non-finite forms ("NaN", "Infinity", "-Infinity") are rejected
+// too, since neither is a valid monetary or quantity value.
 //
 // Scientific/exponential notation ("1E3", "1.5e10", "-2E-5") is rejected
-// even though the underlying library accepts it: SPEC-SYS §5.1's wire
-// format is plain decimal, a customer's tool-call argument is never going
-// to arrive as "1E3" for a dollar amount, and accepting it here would let
-// this package's own String() echo a value back out in a form the wire
-// format does not permit (see String's doc comment).
+// even though the underlying library accepts it: the wire format here is
+// plain decimal, a customer's tool-call argument is never going to arrive
+// as "1E3" for a dollar amount, and accepting it here would let this
+// package's own String() echo a value back out in a form the wire format
+// does not permit (see String's doc comment).
 //
 // Decimal places are preserved exactly as written — Parse does not
-// normalise trailing zeros or reduce the coefficient — because SPEC-MU
-// MU-14 (minor_unit_exponent) needs to know how many decimal places the
-// caller actually supplied, not a mathematically-reduced count.
+// normalise trailing zeros or reduce the coefficient — because MU-14
+// (minor_unit_exponent) needs to know how many decimal places the caller
+// actually supplied, not a mathematically-reduced count.
 func Parse(s string) (Decimal, error) {
 	if strings.ContainsAny(s, "eE") {
 		return Decimal{}, fmt.Errorf("decimal: parse %q: scientific notation is not a valid decimal string", s)
@@ -89,9 +89,9 @@ func (d Decimal) IsZero() bool {
 }
 
 // Compare returns -1 if d < other, 0 if d == other, and +1 if d > other.
-// The comparison is exact: no float64 conversion occurs anywhere in it,
-// which is what SPEC-MU MU-07 (range_bound) requires for kind: money
-// comparisons — "never in floating point."
+// The comparison is exact: no float64 conversion occurs anywhere in it.
+// Money never passes through float64; MU-07 (range_bound) requires that
+// kind: money comparisons happen "never in floating point."
 func (d Decimal) Compare(other Decimal) int {
 	return d.v.Cmp(&other.v)
 }
@@ -143,8 +143,8 @@ func (d Decimal) Abs() Decimal {
 // DecimalPlaces returns the number of digits after the decimal point in d's
 // stored representation — e.g. 3 for a value parsed from "49.999", 2 for
 // "49.90", 0 for "500". This reflects exactly how the value was supplied or
-// computed, not a reduced or canonicalised count, which is what SPEC-MU
-// MU-14 (reject amounts carrying more decimal places than a currency's
+// computed, not a reduced or canonicalised count, which is what MU-14
+// (reject amounts carrying more decimal places than a currency's
 // minor-unit exponent permits) requires.
 func (d Decimal) DecimalPlaces() int32 {
 	if d.v.Exponent >= 0 {
@@ -175,7 +175,7 @@ func (d Decimal) DecimalPlaces() int32 {
 // round-trip through Parse(String()) — which is exactly the class of
 // silent wrong-value defect this package exists to keep out of the engine.
 //
-// SPEC-MU MU-07 requires that range comparison for kind: money happen "in
+// MU-07 requires that range comparison for kind: money happen "in
 // minor units after normalisation, never in floating point." ScaleByExponent
 // is that normalisation step: callers scale a major-units amount by the
 // currency's ISO 4217 minor-unit exponent (e.g. 2 for USD) and compare the

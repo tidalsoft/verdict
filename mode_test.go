@@ -5,7 +5,7 @@ import "testing"
 func TestMode_ZeroValueIsPermissive(t *testing.T) {
 	var m Mode
 	if m != ModePermissive {
-		t.Fatalf("zero value of Mode = %v, want ModePermissive (the documented default per SPEC-PG §2.2)", m)
+		t.Fatalf("zero value of Mode = %v, want ModePermissive (the documented default)", m)
 	}
 }
 

@@ -2,14 +2,14 @@ package field
 
 import "errors"
 
-// Scheme names an identifier checksum or membership algorithm (SPEC-MU
-// MU-16 identifier_checksum). It is a plain string type, not a closed set
+// Scheme names an identifier checksum or membership algorithm (MU-16
+// identifier_checksum). It is a plain string type, not a closed set
 // this package enforces: MU-16 requires an *unrecognised* scheme to
 // evaluate as INDETERMINATE, never to be rejected before MU-16 ever runs,
 // so this package must not narrow what a ruleset is allowed to declare
-// here. The constants below name the schemes SPEC-MU §5 defines; a
-// ruleset may still declare a string that matches none of them, which is
-// exactly the "unrecognised" case MU-16 (task 1-6) must handle.
+// here. The constants below name the defined schemes; a ruleset may still
+// declare a string that matches none of them, which is exactly the
+// "unrecognised" case MU-16 must handle.
 type Scheme string
 
 const (
@@ -42,7 +42,7 @@ const (
 )
 
 // IdentifierDeclaration is the field declaration for `kind: identifier`
-// (SPEC-MU MU-16). Its zero value, produced by NewIdentifierDeclaration,
+// (MU-16). Its zero value, produced by NewIdentifierDeclaration,
 // declares nothing beyond the kind itself.
 type IdentifierDeclaration struct {
 	common
@@ -78,8 +78,8 @@ func (d IdentifierDeclaration) WithScheme(s Scheme) (IdentifierDeclaration, erro
 	return d, nil
 }
 
-// WithNullSemantics declares the field's null-vs-absent handling (SPEC-MU
-// MU-08). n must be NullSemanticsDistinct.
+// WithNullSemantics declares the field's null-vs-absent handling (MU-08).
+// n must be NullSemanticsDistinct.
 func (d IdentifierDeclaration) WithNullSemantics(n NullSemantics) (IdentifierDeclaration, error) {
 	c, err := d.withNullSemantics(n)
 	if err != nil {

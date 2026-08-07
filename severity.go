@@ -1,8 +1,7 @@
 package verdict
 
 // Severity classifies how a FAIL outcome (or, in ModeStrict, an
-// INDETERMINATE outcome) at a given check affects the aggregate verdict
-// (SPEC-MU §2.1, SPEC-PG §2.2).
+// INDETERMINATE outcome) at a given check affects the aggregate verdict.
 //
 // Severity applies only to a Result that was actually constructed for a
 // check that evaluated. A disabled check is neither block nor warn: it
@@ -24,12 +23,11 @@ const (
 	// (absent any block-severity FAIL) but never denies by itself.
 	SeverityWarn
 	// SeverityBlock means a FAIL denies the request outright. In
-	// ModeStrict, an INDETERMINATE at this severity also denies
-	// (SPEC-PG §2.2).
+	// ModeStrict, an INDETERMINATE at this severity also denies.
 	SeverityBlock
 )
 
-// String renders the severity using the vocabulary from SPEC-MU §2.1.
+// String renders the severity's canonical name.
 func (s Severity) String() string {
 	switch s {
 	case SeverityWarn:

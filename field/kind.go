@@ -1,6 +1,6 @@
 package field
 
-// Kind identifies which SPEC-MU §2.3 field-declaration shape a Declaration
+// Kind identifies which field-declaration shape a Declaration
 // carries. Each Kind has exactly one corresponding concrete type
 // (MoneyDeclaration, QuantityDeclaration, TimestampDeclaration,
 // PercentageDeclaration, DecimalDeclaration, IdentifierDeclaration); Kind
@@ -16,32 +16,30 @@ const (
 	// Kind (an uninitialized struct field, a map lookup miss) reads as
 	// "not set" rather than silently aliasing KindMoney.
 	KindUnspecified Kind = iota
-	// KindMoney declares a field as a monetary amount (SPEC-MU §3):
-	// MoneyDeclaration.
+	// KindMoney declares a field as a monetary amount: MoneyDeclaration.
 	KindMoney
-	// KindQuantity declares a field as a dimensioned physical quantity
-	// (SPEC-MU §4): QuantityDeclaration.
+	// KindQuantity declares a field as a dimensioned physical quantity:
+	// QuantityDeclaration.
 	KindQuantity
-	// KindTimestamp declares a field as a point in time (SPEC-MU MU-10,
+	// KindTimestamp declares a field as a point in time (MU-10,
 	// MU-11): TimestampDeclaration.
 	KindTimestamp
 	// KindPercentage declares a field as a fractional-or-hundred-scaled
-	// ratio (SPEC-MU MU-13): PercentageDeclaration.
+	// ratio (MU-13): PercentageDeclaration.
 	KindPercentage
 	// KindDecimal declares a field as an exact decimal value that is not
-	// itself money -- the escape hatch SPEC-MU MU-14 names for
-	// intermediate calculation values that legitimately carry more
-	// precision than a currency's minor unit permits: DecimalDeclaration.
+	// itself money -- the escape hatch for intermediate calculation values
+	// that legitimately carry more precision than a currency's minor unit
+	// permits: DecimalDeclaration.
 	KindDecimal
 	// KindIdentifier declares a field as a structured identifier subject
-	// to checksum or membership validation (SPEC-MU MU-16):
-	// IdentifierDeclaration.
+	// to checksum or membership validation (MU-16): IdentifierDeclaration.
 	KindIdentifier
 )
 
-// String renders the kind using the vocabulary SPEC-MU §2.3's YAML example
-// uses. An out-of-range value (including the zero value, KindUnspecified)
-// renders as "unspecified" rather than panicking.
+// String renders the kind's canonical name. An out-of-range value
+// (including the zero value, KindUnspecified) renders as "unspecified"
+// rather than panicking.
 func (k Kind) String() string {
 	switch k {
 	case KindMoney:

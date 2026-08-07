@@ -2,10 +2,9 @@ package decimal
 
 import "testing"
 
-// TestReconciles_ConformanceVectors encodes SPEC-MU §8 vectors 32, 33, and
-// 34 directly against this package's exact arithmetic. Vector 33 is called
-// out in SPEC-MU §8 as "the single most important test in this document":
-// line items [0.1, 0.2] must reconcile to a total of 0.3 under exact decimal
+// TestReconciles_ConformanceVectors exercises MU-12's reconciliation
+// arithmetic directly. The [0.1, 0.2] case is the critical one: line items
+// [0.1, 0.2] must reconcile to a total of 0.3 under exact decimal
 // arithmetic, where binary floating point would fail it.
 func TestReconciles_ConformanceVectors(t *testing.T) {
 	cases := []struct {
@@ -37,24 +36,25 @@ func TestReconciles_ConformanceVectors(t *testing.T) {
 				t.Fatalf("Reconciles unexpected error: %v", err)
 			}
 			if got != tc.want {
-				t.Errorf("vector %d: Reconciles(sum=%s, total=%s, tolerance=0) = %v, want %v",
+				t.Errorf("case %d: Reconciles(sum=%s, total=%s, tolerance=0) = %v, want %v",
 					tc.vector, computed, total, got, tc.want)
 			}
 		})
 	}
 }
 
-// TestVector33_ExactDecimalVersusFloat64 is the tripwire test called for
-// explicitly by the task: it proves vector 33 passes under this package's
-// exact decimal arithmetic, and independently demonstrates that the same
-// computation performed in native float64 does NOT reconcile -- so a future
-// change that quietly swapped this package's internals for float64 math
-// would make the first assertion fail, not just the second.
+// TestVector33_ExactDecimalVersusFloat64 is the tripwire test for money
+// never passing through float64: it proves [0.1, 0.2] reconciles to 0.3
+// under this package's exact decimal arithmetic, and independently
+// demonstrates that the same computation performed in native float64 does
+// NOT reconcile -- so a future change that quietly swapped this package's
+// internals for float64 math would make the first assertion fail, not just
+// the second.
 func TestVector33_ExactDecimalVersusFloat64(t *testing.T) {
 	// The float64 half: 0.1 + 0.2 != 0.3 in IEEE 754 binary64. This is not
 	// testing this package at all -- it is documenting, in an executable and
-	// permanently-checked form, exactly the defect SPEC-MU MU-12 and
-	// CLAUDE.md invariant #2 exist to keep out of this codebase.
+	// permanently-checked form, exactly the defect MU-12 exists to keep out
+	// of this codebase: money must never pass through float64.
 	//
 	// The two operands are assigned to float64 variables first, deliberately:
 	// `0.1 + 0.2` written directly as a constant expression would be folded
@@ -68,7 +68,7 @@ func TestVector33_ExactDecimalVersusFloat64(t *testing.T) {
 	var floatTwoTenths = 0.2
 	floatSum := floatTenth + floatTwoTenths
 	if floatSum == 0.3 {
-		t.Fatal("0.1 + 0.2 == 0.3 under runtime float64 on this platform -- the premise of vector 33 " +
+		t.Fatal("0.1 + 0.2 == 0.3 under runtime float64 on this platform -- the premise of this test " +
 			"(and of this package's reason to exist) no longer holds; investigate before trusting " +
 			"the exact-decimal assertion below")
 	}

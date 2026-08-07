@@ -6,11 +6,11 @@ import (
 )
 
 // Registry is the set of field declarations a ruleset supplies, keyed by
-// argument path (e.g. "arguments.amount"). It makes SPEC-MU §2.3's
-// field-level absence rule concrete: "Where a declaration is absent,
-// Class D checks depending on it return INDETERMINATE. They do not
-// guess." Lookup's second return value is that absence signal, true only
-// for a path the Registry was actually built with.
+// argument path (e.g. "arguments.amount"). It makes the field-level
+// absence rule concrete: where a declaration is absent, Class D checks
+// depending on it return INDETERMINATE. They do not guess. Lookup's second
+// return value is that absence signal, true only for a path the Registry
+// was actually built with.
 //
 // Registry's zero value (an empty Registry{}) is itself usable and behaves
 // as "no field in the ruleset carries a declaration" -- every Lookup
@@ -46,8 +46,8 @@ func NewRegistry(decls map[string]Declaration) (Registry, error) {
 
 // Lookup returns the Declaration supplied for fieldPath, and whether one
 // was supplied at all. A false second return value is the "declaration
-// absent" case SPEC-MU §2.3 requires Class D checks to treat as
-// INDETERMINATE, never as a default: it is not distinguishable from any
+// absent" case Class D checks must treat as INDETERMINATE, never as a
+// default: it is not distinguishable from any
 // particular Declaration value, because no such sentinel value is ever
 // stored here -- the only way a path is absent is that it was never passed
 // to NewRegistry.

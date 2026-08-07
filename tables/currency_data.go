@@ -8,7 +8,7 @@ package tables
 
 // iso4217Version is ISO 4217 Table A.1's own publication date (the XML
 // root element's Pblshd attribute, "2026-01-01"), truncated to the "YYYY-MM" form
-// SPEC-MU §7.2's example response uses.
+// used to report this table's version.
 const iso4217Version = "2026-01"
 
 // iso4217Rows returns the compiled-in ISO 4217 currency & funds code list.

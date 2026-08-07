@@ -2,7 +2,7 @@ package verdict
 
 import "fmt"
 
-// Class distinguishes how a check's verdict is produced (SPEC-MU §2.2).
+// Class distinguishes how a check's verdict is produced.
 type Class int
 
 const (
@@ -20,17 +20,17 @@ const (
 	// ClassS (statistical) checks depend on a learned distribution or
 	// heuristic and therefore carry a non-zero false positive rate. Class
 	// S defaults to SeverityWarn and may only reach SeverityBlock for a
-	// specific field after a measured, per-field promotion (SPEC-MU
-	// §2.2) -- see NewPromotedResult. This package models that
-	// restriction structurally; the promotion lifecycle itself (fire
-	// counting, precision measurement, the 100-fire minimum) is task
-	// 2-14, platform-side, and is out of scope here.
+	// specific field after a measured, per-field promotion -- see
+	// NewPromotedResult. This package models that restriction
+	// structurally; the promotion lifecycle itself (fire counting,
+	// precision measurement, and the minimum sample size required before
+	// promotion) happens outside this library and is out of scope here.
 	ClassS
 )
 
-// String renders the class using SPEC-MU §2.2's letters. An out-of-range
-// value (including the zero value, ClassUnspecified) renders as
-// "UNKNOWN_CLASS" rather than panicking.
+// String renders the class as its canonical single-letter code. An
+// out-of-range value (including the zero value, ClassUnspecified) renders
+// as "UNKNOWN_CLASS" rather than panicking.
 func (c Class) String() string {
 	switch c {
 	case ClassD:
@@ -51,8 +51,8 @@ func (c Class) valid() bool {
 }
 
 // DefaultSeverity returns the severity a check of this class carries unless
-// a ruleset explicitly overrides it (SPEC-MU §2.2 table). It returns an
-// error for any class other than ClassD or ClassS.
+// a ruleset explicitly overrides it. It returns an error for any class
+// other than ClassD or ClassS.
 func (c Class) DefaultSeverity() (Severity, error) {
 	switch c {
 	case ClassD:
