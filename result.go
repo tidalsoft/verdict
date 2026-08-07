@@ -1,4 +1,4 @@
-package engine
+package verdict
 
 import (
 	"errors"
@@ -57,19 +57,19 @@ func (r Result) Outcome() Outcome { return r.outcome }
 // already been authorized upstream.
 func NewResult(checkID string, class Class, severity Severity, outcome Outcome) (Result, error) {
 	if checkID == "" {
-		return Result{}, errors.New("engine: check id must not be empty")
+		return Result{}, errors.New("verdict: check id must not be empty")
 	}
 	if !class.valid() {
-		return Result{}, fmt.Errorf("engine: check %q: invalid check class %v", checkID, class)
+		return Result{}, fmt.Errorf("verdict: check %q: invalid check class %v", checkID, class)
 	}
 	if !severity.valid() {
-		return Result{}, fmt.Errorf("engine: check %q: invalid severity %v", checkID, severity)
+		return Result{}, fmt.Errorf("verdict: check %q: invalid severity %v", checkID, severity)
 	}
 	if !outcome.valid() {
-		return Result{}, fmt.Errorf("engine: check %q: invalid outcome %v", checkID, outcome)
+		return Result{}, fmt.Errorf("verdict: check %q: invalid outcome %v", checkID, outcome)
 	}
 	if class == ClassS && severity == SeverityBlock {
-		return Result{}, fmt.Errorf("engine: check %q: class S check cannot be constructed at block severity via NewResult; use NewPromotedResult once promotion has been authorized upstream (SPEC-MU §2.2)", checkID)
+		return Result{}, fmt.Errorf("verdict: check %q: class S check cannot be constructed at block severity via NewResult; use NewPromotedResult once promotion has been authorized upstream (SPEC-MU §2.2)", checkID)
 	}
 	return Result{checkID: checkID, class: class, severity: severity, outcome: outcome}, nil
 }
@@ -86,10 +86,10 @@ func NewResult(checkID string, class Class, severity Severity, outcome Outcome) 
 // for themselves.
 func NewPromotedResult(checkID string, outcome Outcome) (Result, error) {
 	if checkID == "" {
-		return Result{}, errors.New("engine: check id must not be empty")
+		return Result{}, errors.New("verdict: check id must not be empty")
 	}
 	if !outcome.valid() {
-		return Result{}, fmt.Errorf("engine: check %q: invalid outcome %v", checkID, outcome)
+		return Result{}, fmt.Errorf("verdict: check %q: invalid outcome %v", checkID, outcome)
 	}
 	return Result{checkID: checkID, class: ClassS, severity: SeverityBlock, outcome: outcome}, nil
 }

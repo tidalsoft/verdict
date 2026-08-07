@@ -1,4 +1,4 @@
-package engine
+package verdict
 
 import "fmt"
 
@@ -60,6 +60,6 @@ func (c Class) DefaultSeverity() (Severity, error) {
 	case ClassS:
 		return SeverityWarn, nil
 	default:
-		return SeverityUnspecified, fmt.Errorf("engine: class %v has no default severity", c)
+		return SeverityUnspecified, fmt.Errorf("verdict: class %v has no default severity", c)
 	}
 }

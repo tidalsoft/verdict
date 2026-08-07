@@ -3,7 +3,7 @@ package field
 import (
 	"testing"
 
-	"github.com/evanisnor/gatepost/engine/decimal"
+	"github.com/tidalsoft/gatepost/verdict/decimal"
 )
 
 var _ Declaration = MoneyDeclaration{}

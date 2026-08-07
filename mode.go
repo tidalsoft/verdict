@@ -1,4 +1,4 @@
-package engine
+package verdict
 
 // Mode selects how ComputeAggregate treats an INDETERMINATE outcome from a
 // block-severity check (SPEC-PG §2.2).

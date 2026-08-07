@@ -1,4 +1,4 @@
-package engine
+package verdict
 
 import "fmt"
 
@@ -125,17 +125,17 @@ type Aggregate struct {
 // rather than open, because the zero Aggregate denies.
 func ComputeAggregate(results []Result, mode Mode) (Aggregate, error) {
 	if !mode.valid() {
-		return Aggregate{}, fmt.Errorf("engine: invalid mode %v", mode)
+		return Aggregate{}, fmt.Errorf("verdict: invalid mode %v", mode)
 	}
 
 	var blockFail, warnFail, blockIndeterminateStrict bool
 
 	for _, r := range results {
 		if !r.outcome.valid() {
-			return Aggregate{}, fmt.Errorf("engine: check %q: invalid outcome %v", r.checkID, r.outcome)
+			return Aggregate{}, fmt.Errorf("verdict: check %q: invalid outcome %v", r.checkID, r.outcome)
 		}
 		if !r.severity.valid() {
-			return Aggregate{}, fmt.Errorf("engine: check %q: invalid severity %v", r.checkID, r.severity)
+			return Aggregate{}, fmt.Errorf("verdict: check %q: invalid severity %v", r.checkID, r.severity)
 		}
 
 		switch r.outcome {

@@ -1,4 +1,4 @@
-package engine
+package verdict
 
 // Severity classifies how a FAIL outcome (or, in ModeStrict, an
 // INDETERMINATE outcome) at a given check affects the aggregate verdict

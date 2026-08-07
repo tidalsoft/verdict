@@ -1,4 +1,4 @@
-package engine
+package verdict
 
 // Outcome is the three-valued result of evaluating a single check or gate
 // (SPEC-MU §2.1, SPEC-PG §2.1).

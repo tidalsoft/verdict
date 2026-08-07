@@ -40,7 +40,7 @@ type CurrencyTable struct {
 }
 
 // Version implements Versioned, reporting ISO 4217 Table A.1's own
-// publication date (see engine/tables/generate/iso4217).
+// publication date (see verdict/tables/generate/iso4217).
 func (t CurrencyTable) Version() string { return t.version }
 
 // Lookup returns the Currency for code and whether code is present in the
@@ -60,7 +60,7 @@ func (t CurrencyTable) Lookup(code string) (Currency, bool) {
 
 // NewISO4217Table builds the compiled-in ISO 4217 currency table. It is a
 // pure function of this package's compiled-in data (currency_data.go,
-// generated -- see engine/tables/generate/iso4217) and allocates a lookup
+// generated -- see verdict/tables/generate/iso4217) and allocates a lookup
 // map on every call, so callers should build one table once (e.g.
 // alongside a ruleset or evaluator) and reuse it across evaluations rather
 // than calling this per request -- see the package doc comment.

@@ -21,7 +21,7 @@ type CountryTable struct {
 	byCode  map[string]Country
 }
 
-// Version implements Versioned -- see engine/tables/generate/iso3166 for
+// Version implements Versioned -- see verdict/tables/generate/iso3166 for
 // what this date represents (a cross-verification date, not a publication
 // date: ISO 3166-1 alpha-2 has no free primary-source machine-readable
 // release to cite the way ISO 4217 does).
@@ -43,7 +43,7 @@ func (t CountryTable) Lookup(code string) (Country, bool) {
 
 // NewISO3166Alpha2Table builds the compiled-in ISO 3166-1 alpha-2 country
 // table. It is a pure function of this package's compiled-in data
-// (country_data.go, generated -- see engine/tables/generate/iso3166) and
+// (country_data.go, generated -- see verdict/tables/generate/iso3166) and
 // allocates a lookup map on every call, so callers should build one table
 // once and reuse it across evaluations rather than calling this per
 // request -- see the package doc comment.

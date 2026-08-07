@@ -1,4 +1,4 @@
-// Package engine is the Gatepost evaluation engine: the deterministic core
+// Package verdict is the Gatepost evaluation engine: the deterministic core
 // that will implement the magnitude/unit checks (SPEC-MU), precondition gates
 // (SPEC-PG §3-5), and postcondition checks (SPEC-PG §6) that make up the
 // product's evaluation surface.
@@ -11,20 +11,21 @@
 // HTTP handlers, storage, metering — belong in the platform code that
 // imports this package, never the reverse.
 //
-// Extraction plan: this package tree (github.com/evanisnor/gatepost/engine
+// Extraction plan: this package tree (github.com/tidalsoft/gatepost/verdict
 // and everything beneath it) is extracted into its own standalone Apache 2.0
-// repository at task 2-18, becoming its own module at that point. Today it
+// repository at task 2-18, becoming its own module (github.com/tidalsoft/verdict)
+// at that point. Today it
 // lives in the same module as the platform code (cmd/, internal/, web/) as
 // an ordinary Go subpackage — a prior separate-module design was reverted
-// because it broke `go install github.com/evanisnor/gatepost/cmd/gatepost@..`
+// because it broke `go install github.com/tidalsoft/gatepost/cmd/gatepost@..`
 // for end users (a module with a replace directive cannot be `go install`ed
 // by anyone outside the workspace, which defeats the CLI's role as a
 // discovery surface, per SPEC-LAND §5.1 / task 1-16 / 2-19).
 //
 // Because there is no module boundary to mechanically enforce the purity
 // invariant until 2-18, it is enforced instead by a depguard rule in the
-// repository's .golangci.yml: packages under engine/... are forbidden from
-// importing github.com/evanisnor/gatepost/{cmd,internal,web}/... . That rule
+// repository's .golangci.yml: packages under verdict/... are forbidden from
+// importing github.com/tidalsoft/gatepost/{cmd,internal,web}/... . That rule
 // runs on every mandatory lint pass and is what keeps the 2-18 split a
 // directory move rather than an import-path untangling exercise.
 //
@@ -46,4 +47,4 @@
 // ComputeAggregate applies internally (mode == ModeStrict && severity ==
 // SeverityBlock). Losing that pairing after evaluation means it cannot be
 // reconstructed from the Aggregate alone.
-package engine
+package verdict

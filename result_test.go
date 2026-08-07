@@ -1,4 +1,4 @@
-package engine
+package verdict
 
 import (
 	"strings"
