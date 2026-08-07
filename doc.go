@@ -28,6 +28,22 @@
 // runs on every mandatory lint pass and is what keeps the 2-18 split a
 // directory move rather than an import-path untangling exercise.
 //
-// This package is scaffolding: it currently exposes only build metadata.
-// Verdict types, checks, and gates land as the engine is implemented.
+// Verdict model: this package defines the vocabulary every check and gate
+// in Phase 1 produces and that the response contracts (task 1-14) will
+// serialise -- the three-valued Outcome (SPEC-MU §2.1, SPEC-PG §2.1), check
+// Severity and Class (SPEC-MU §2.2), evaluation Mode (SPEC-PG §2.2), the
+// per-check Result, and the request-level Aggregate computed by
+// ComputeAggregate. Specific checks (MU-*), gates (PG-*), the state
+// envelope, and response serialisation are later tasks built on top of
+// this vocabulary; they do not live here.
+//
+// Note for task 1-14: Result deliberately is not a response record, and
+// ComputeAggregate deliberately does not return the per-check detail a
+// response has to report. A downstream assembler must keep its own,
+// richer per-check record -- pairing each Result with the Severity and
+// Mode it was evaluated under -- because reconstructing the response
+// contract's denied_under_strict_mode flag requires exactly the predicate
+// ComputeAggregate applies internally (mode == ModeStrict && severity ==
+// SeverityBlock). Losing that pairing after evaluation means it cannot be
+// reconstructed from the Aggregate alone.
 package engine
