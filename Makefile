@@ -21,7 +21,8 @@ ifeq ($(RACE),1)
 RACE_FLAG := -race
 endif
 
-.PHONY: build vet test test-integration lint cover check clean
+.PHONY: build vet test test-integration lint cover check clean \
+	release-check release-bump release
 
 build:
 	go build ./...
@@ -66,3 +67,45 @@ check: build vet lint test test-integration cover
 
 clean:
 	rm -rf $(COVER_DIR)
+
+# --- Release discipline ------------------------------------------------
+# gatepost/PLAN.md "Verdict release discipline": go.mod must require a
+# published verdict tag, never a replace directive (U-3). These targets
+# enforce that workflow — release-check validates preconditions, release-
+# bump updates the const, release runs the full ceremony.
+# -----------------------------------------------------------------------
+
+release-check:
+ifndef VERSION
+	$(error VERSION is required — e.g. make release-check VERSION=0.2.0)
+endif
+	@if ! echo "$(VERSION)" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$$'; then \
+		echo "VERSION=$(VERSION) is not valid semver (expected X.Y.Z)."; \
+		exit 1; \
+	fi
+	@if [ -n "$$(git status --porcelain)" ]; then \
+		echo "Working tree is dirty — commit or stash before releasing."; \
+		exit 1; \
+	fi
+	@if [ "$$(git rev-parse --abbrev-ref HEAD)" != "main" ]; then \
+		echo "Not on main (currently on $$(git rev-parse --abbrev-ref HEAD)) — switch to main."; \
+		exit 1; \
+	fi
+	@if git rev-parse -q --verify refs/tags/v$(VERSION) >/dev/null 2>&1; then \
+		echo "Tag v$(VERSION) already exists — pick a different VERSION."; \
+		exit 1; \
+	fi
+	@echo "release-check OK: VERSION=$(VERSION), tree clean, on main, tag absent."
+
+release-bump: release-check
+	sed -i '' -e 's/^const Version = ".*"/const Version = "$(VERSION)"/' version.go
+	@echo "Bumped version.go to $(VERSION). Review with: git diff version.go"
+
+release: release-check release-bump
+	go test ./...
+	git add version.go version_test.go
+	git commit -m "release: v$(VERSION)"
+	git tag -a v$(VERSION) -m "Release v$(VERSION)"
+	git push origin main
+	git push origin v$(VERSION)
+	@echo "Released v$(VERSION)."

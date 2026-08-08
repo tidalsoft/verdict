@@ -47,6 +47,12 @@ jobs:
       - name: Coverage (enforced gate)
         run: make cover
 
+      # On a tag push github.ref_name is e.g. "v0.1.0"; this step proves
+      # the committed Version const matches the tag exactly at release time.
+      - name: Verify version const matches tag
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: bash scripts/check-version.sh "${{ github.ref_name }}"
+
       - name: Upload coverage profile
         if: always()
         uses: actions/upload-artifact@v4

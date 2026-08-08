@@ -1,6 +1,9 @@
 package verdict
 
-import "testing"
+import (
+	"regexp"
+	"testing"
+)
 
 // TestVersion proves the test harness actually wires up and executes: it is
 // a genuine assertion on the one piece of real content the scaffold ships
@@ -9,7 +12,8 @@ func TestVersion(t *testing.T) {
 	if Version == "" {
 		t.Fatal("Version must not be empty")
 	}
-	if Version != "0.0.0-dev" {
-		t.Fatalf("Version = %q, want the pre-release placeholder %q until the first tagged release", Version, "0.0.0-dev")
+	semverRe := regexp.MustCompile(`^\d+\.\d+\.\d+$`)
+	if !semverRe.MatchString(Version) {
+		t.Fatalf("Version = %q, want a semver string of the form X.Y.Z", Version)
 	}
 }

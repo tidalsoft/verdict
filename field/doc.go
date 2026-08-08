@@ -56,4 +56,55 @@
 // provide, and resolving a scheme requires MU-16 to be able to report an
 // *unrecognised* value as INDETERMINATE rather than have this package
 // reject it before MU-16 ever runs.
+//
+// # Adding a new Kind
+//
+// The six kinds above are a closed set, but the set is not frozen: a new
+// Kind is a deliberate, five-step addition, and the steps below are the
+// whole of it. Follow them in order; each step has a check that fails
+// loudly if it was skipped.
+//
+//  1. Add the KindX constant to the Kind enum in kind.go. The zero value
+//     must stay KindUnspecified: insert the new constant after
+//     KindIdentifier, never before KindUnspecified, so a zero-initialized
+//     Kind keeps reading as "not set" rather than silently aliasing the
+//     new kind.
+//  2. Add the corresponding case to Kind.String(). The name returned
+//     there is the name a ruleset writes as `kind: x`, so it must match
+//     the new kind's canonical name exactly.
+//  3. Create x.go with the concrete XDeclaration type implementing
+//     Declaration. Mirror money.go's shape exactly: embed the unexported
+//     common type (which supplies null_semantics, MU-08), give every
+//     attribute a comma-ok accessor returning (T, bool) whose ok is false
+//     until the corresponding With* method is called, and give every
+//     With* method the fluent signature (XDeclaration, error) that
+//     returns the zero XDeclaration on error, never a partially-mutated
+//     value. The constructor is NewXDeclaration returning XDeclaration
+//     with no attributes declared; Kind() returns the new KindX.
+//  4. Create x_test.go with >=100% coverage of the new type. This is the
+//     repo's gate: `make check` enforces 100% file, package, and total
+//     coverage with zero exclusions, so a new type without a colocated
+//     test fails the gate. Cover every accessor's absent and present
+//     paths, every With* error path, and the Kind()/String() round trip.
+//  5. The Registry needs no change. It is generic over Declaration
+//     (map[string]Declaration), so a new concrete type flows through
+//     NewRegistry and Lookup without a single edit.
+//
+// # Codegen is deferred, not adopted
+//
+// The five steps above are mechanical, and a reader may wonder why they
+// are not generated. They are not, and that is a decision, not an
+// oversight: codegen is NOT adopted today. The six existing types are
+// written, reviewed, and at 100% coverage; a generator would have to
+// reproduce that exact shape to earn its keep, and the cost of a seventh
+// hand-written type is one file and one test.
+//
+// The decision is deferred until a 7th Kind appears. At that point, build
+// a generator following the tables/generate precedent: a main.go guarded
+// by `//go:build ignore` in a generate/ subdirectory, run via `go run`,
+// with its source data committed alongside the generator, and regenerate
+// all six existing types plus the new one so the output stays uniform.
+// Note the mechanism precisely: this repo has no `go generate` mechanism
+// anywhere, and the precedent is `//go:build ignore` + `go run`, not the
+// `go generate` command. A generator must follow the precedent that exists.
 package field

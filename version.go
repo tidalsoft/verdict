@@ -6,7 +6,6 @@ package verdict
 // version read this constant and may combine it with their own build
 // metadata.
 //
-// The value follows semver and is bumped as part of the commit that changes
-// this package's behaviour in a way third-party importers would care about.
-// Before the first tagged release it stays at "0.0.0-dev".
-const Version = "0.0.0-dev"
+// The value follows semver. It always reads the latest released version and
+// is bumped atomically with the tag via "make release".
+const Version = "0.1.0"
