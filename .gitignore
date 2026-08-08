@@ -8,6 +8,10 @@
 /coverage/*.out
 /coverage/*.prof
 
+# Orchestrator state (Sisyphus/Prometheus plans, drafts, evidence, notepads).
+# Never committed.
+.sisyphus/
+
 # OS
 .DS_Store
 
