@@ -44,17 +44,7 @@ func checkMU14(in Input) (verdict.Result, error) {
 		return indeterminateResult("MU-14")
 	}
 
-	currencyField, hasCurrencyField := moneyDecl.CurrencyField()
-	if !hasCurrencyField {
-		return indeterminateResult("MU-14")
-	}
-
-	currencyCode, ok := in.Vals[currencyField]
-	if !ok {
-		return indeterminateResult("MU-14")
-	}
-
-	currency, ok := in.Tables.resolveCurrency(currencyCode)
+	currency, ok := resolveDeclaredCurrency(in, moneyDecl.CurrencyField)
 	if !ok {
 		return indeterminateResult("MU-14")
 	}

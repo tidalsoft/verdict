@@ -97,19 +97,47 @@ func TestChecksFor_DispatchTable(t *testing.T) {
 
 func TestEvaluate_DispatchPerKind(t *testing.T) {
 	// Every case below declares its kind but nothing else, so every check
-	// the kind carries is unsatisfied and returns INDETERMINATE (MU-01 and
-	// MU-14 for real via their branch matrices; the rest via their
-	// placeholder bodies). Evaluate (§2.4: no short-circuiting) must
-	// return all of them, in ascending check-ID order, not just the first.
+	// the kind carries is unsatisfied and returns INDETERMINATE -- except
+	// MU-02 (precision.go), whose only requirement is the field's kind
+	// (money or decimal) being one it applies to at all: with Value's zero
+	// value (exact 0) and Provenance's zero value (FromString), MU-02
+	// evaluates for real and PASSes, since decimal.PrecisionLoss never
+	// fails a FromString value. Evaluate (§2.4: no short-circuiting) must
+	// return every applicable check's result, in ascending check-ID order,
+	// not just the first.
 	cases := []struct {
-		name    string
-		decl    field.Declaration
-		wantIDs []string
+		name         string
+		decl         field.Declaration
+		wantIDs      []string
+		wantOutcomes []verdict.Outcome
 	}{
-		{"money", field.NewMoneyDeclaration(), []string{"MU-01", "MU-02", "MU-03", "MU-06", "MU-07", "MU-14"}},
-		{"decimal", field.NewDecimalDeclaration(), []string{"MU-02"}},
-		{"percentage", field.NewPercentageDeclaration(), []string{"MU-13"}},
-		{"quantity", field.NewQuantityDeclaration(), []string{"MU-07"}},
+		{
+			"money",
+			field.NewMoneyDeclaration(),
+			[]string{"MU-01", "MU-02", "MU-03", "MU-06", "MU-07", "MU-14"},
+			[]verdict.Outcome{
+				verdict.OutcomeIndeterminate, verdict.OutcomePass, verdict.OutcomeIndeterminate,
+				verdict.OutcomeIndeterminate, verdict.OutcomeIndeterminate, verdict.OutcomeIndeterminate,
+			},
+		},
+		{
+			"decimal",
+			field.NewDecimalDeclaration(),
+			[]string{"MU-02"},
+			[]verdict.Outcome{verdict.OutcomePass},
+		},
+		{
+			"percentage",
+			field.NewPercentageDeclaration(),
+			[]string{"MU-13"},
+			[]verdict.Outcome{verdict.OutcomeIndeterminate},
+		},
+		{
+			"quantity",
+			field.NewQuantityDeclaration(),
+			[]string{"MU-07"},
+			[]verdict.Outcome{verdict.OutcomeIndeterminate},
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -128,8 +156,8 @@ func TestEvaluate_DispatchPerKind(t *testing.T) {
 				if res.CheckID() != tc.wantIDs[i] {
 					t.Errorf("result %d CheckID() = %q, want %q", i, res.CheckID(), tc.wantIDs[i])
 				}
-				if res.Outcome() != verdict.OutcomeIndeterminate {
-					t.Errorf("result %d Outcome() = %v, want INDETERMINATE", i, res.Outcome())
+				if res.Outcome() != tc.wantOutcomes[i] {
+					t.Errorf("result %d Outcome() = %v, want %v", i, res.Outcome(), tc.wantOutcomes[i])
 				}
 			}
 		})
@@ -321,107 +349,91 @@ func TestAsciiUpper(t *testing.T) {
 	}
 }
 
+// TestBounded exercises bounded's own contract directly: value, min, and
+// max are already in the same units by the time bounded sees them (that
+// normalization is checkMU07's job -- see range_test.go for the
+// unit-conversion cases), so every case here passes min/max already
+// expressed in whatever unit "value" is in, exactly as checkMU07 would
+// hand them over post-normalization.
 func TestBounded(t *testing.T) {
-	tbl := tables.NewISO4217Table()
-	usd, _ := tbl.Lookup("USD")
-	jpy, _ := tbl.Lookup("JPY")
-	xau, _ := tbl.Lookup("XAU")
-
 	cases := []struct {
-		name     string
-		decl     field.MoneyDeclaration
-		value    string
-		currency tables.Currency
-		want     verdict.Outcome
+		name   string
+		decl   field.MoneyDeclaration
+		value  string
+		min    string
+		hasMin bool
+		max    string
+		hasMax bool
+		want   verdict.Outcome
 	}{
 		{
-			name:     "no bounds declared -> INDETERMINATE",
-			decl:     field.NewMoneyDeclaration(),
-			value:    "49.99",
-			currency: usd,
-			want:     verdict.OutcomeIndeterminate,
+			name:  "below min -> FAIL",
+			decl:  field.NewMoneyDeclaration(),
+			value: "49.99",
+			min:   "50", hasMin: true,
+			want: verdict.OutcomeFail,
 		},
 		{
-			name:     "currency without minor-unit exponent -> INDETERMINATE",
-			decl:     field.NewMoneyDeclaration().WithMin(mustParse(t, "0")),
-			value:    "49.99",
-			currency: xau,
-			want:     verdict.OutcomeIndeterminate,
+			name:  "above max -> FAIL",
+			decl:  field.NewMoneyDeclaration(),
+			value: "50.01",
+			max:   "50", hasMax: true,
+			want: verdict.OutcomeFail,
 		},
 		{
-			name:     "below min -> FAIL",
-			decl:     field.NewMoneyDeclaration().WithMin(mustParse(t, "50")),
-			value:    "49.99",
-			currency: usd,
-			want:     verdict.OutcomeFail,
+			name:  "within bounds -> PASS",
+			decl:  field.NewMoneyDeclaration(),
+			value: "49.99",
+			min:   "0", hasMin: true,
+			max: "100", hasMax: true,
+			want: verdict.OutcomePass,
 		},
 		{
-			name:     "above max -> FAIL",
-			decl:     field.NewMoneyDeclaration().WithMax(mustParse(t, "50")),
-			value:    "50.01",
-			currency: usd,
-			want:     verdict.OutcomeFail,
+			name:  "inclusive min equality -> PASS",
+			decl:  field.NewMoneyDeclaration(),
+			value: "49.99",
+			min:   "49.99", hasMin: true,
+			want: verdict.OutcomePass,
 		},
 		{
-			name:     "within bounds -> PASS",
-			decl:     field.NewMoneyDeclaration().WithMin(mustParse(t, "0")).WithMax(mustParse(t, "100")),
-			value:    "49.99",
-			currency: usd,
-			want:     verdict.OutcomePass,
+			name:  "inclusive max equality -> PASS",
+			decl:  field.NewMoneyDeclaration(),
+			value: "49.99",
+			max:   "49.99", hasMax: true,
+			want: verdict.OutcomePass,
 		},
 		{
-			name:     "inclusive min equality -> PASS",
-			decl:     field.NewMoneyDeclaration().WithMin(mustParse(t, "49.99")),
-			value:    "49.99",
-			currency: usd,
-			want:     verdict.OutcomePass,
+			name:  "exclusive min equality -> FAIL",
+			decl:  field.NewMoneyDeclaration().WithExclusiveMin(),
+			value: "49.99",
+			min:   "49.99", hasMin: true,
+			want: verdict.OutcomeFail,
 		},
 		{
-			name:     "inclusive max equality -> PASS",
-			decl:     field.NewMoneyDeclaration().WithMax(mustParse(t, "49.99")),
-			value:    "49.99",
-			currency: usd,
-			want:     verdict.OutcomePass,
+			name:  "exclusive max equality -> FAIL",
+			decl:  field.NewMoneyDeclaration().WithExclusiveMax(),
+			value: "49.99",
+			max:   "49.99", hasMax: true,
+			want: verdict.OutcomeFail,
 		},
 		{
-			name:     "exclusive min equality -> FAIL",
-			decl:     field.NewMoneyDeclaration().WithMin(mustParse(t, "49.99")).WithExclusiveMin(),
-			value:    "49.99",
-			currency: usd,
-			want:     verdict.OutcomeFail,
+			name:  "only min bound, value above -> PASS",
+			decl:  field.NewMoneyDeclaration(),
+			value: "49.99",
+			min:   "0", hasMin: true,
+			want: verdict.OutcomePass,
 		},
 		{
-			name:     "exclusive max equality -> FAIL",
-			decl:     field.NewMoneyDeclaration().WithMax(mustParse(t, "49.99")).WithExclusiveMax(),
-			value:    "49.99",
-			currency: usd,
-			want:     verdict.OutcomeFail,
-		},
-		{
-			name:     "only min bound, value above -> PASS",
-			decl:     field.NewMoneyDeclaration().WithMin(mustParse(t, "0")),
-			value:    "49.99",
-			currency: usd,
-			want:     verdict.OutcomePass,
-		},
-		{
-			name:     "only max bound, value below -> PASS",
-			decl:     field.NewMoneyDeclaration().WithMax(mustParse(t, "100")),
-			value:    "49.99",
-			currency: usd,
-			want:     verdict.OutcomePass,
-		},
-		{
-			name:     "JPY exponent 0 normalization",
-			decl:     field.NewMoneyDeclaration().WithMin(mustParse(t, "500")),
-			value:    "499",
-			currency: jpy,
-			want:     verdict.OutcomeFail,
+			name:  "only max bound, value below -> PASS",
+			decl:  field.NewMoneyDeclaration(),
+			value: "49.99",
+			max:   "100", hasMax: true,
+			want: verdict.OutcomePass,
 		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			res, err := bounded(tc.decl, mustParse(t, tc.value), tc.currency)
+			res, err := bounded(tc.decl, mustParse(t, tc.value), mustParse(t, orZero(tc.min)), tc.hasMin, mustParse(t, orZero(tc.max)), tc.hasMax)
 			if err != nil {
 				t.Fatalf("bounded unexpected error: %v", err)
 			}
@@ -435,29 +447,15 @@ func TestBounded(t *testing.T) {
 	}
 }
 
-func TestBounded_ScaleByExponentError(t *testing.T) {
-	usd, _ := tables.NewISO4217Table().Lookup("USD")
-	decl := field.NewMoneyDeclaration().WithMin(mustParse(t, "0"))
-	huge := mustParse(t, "999"+strings.Repeat("0", 99997))
-	_, err := bounded(decl, huge, usd)
-	if err == nil {
-		t.Fatal("bounded with value overflowing ScaleByExponent succeeded, want error")
+// orZero returns "0" for an empty string, so a table-driven case that
+// leaves min or max unset can still pass a parseable literal through
+// mustParse -- bounded ignores the value whenever the matching hasMin/
+// hasMax is false, so what it parses to is immaterial.
+func orZero(s string) string {
+	if s == "" {
+		return "0"
 	}
-}
-
-func TestBounded_BoundScaleError(t *testing.T) {
-	usd, _ := tables.NewISO4217Table().Lookup("USD")
-	huge := mustParse(t, "999"+strings.Repeat("0", 99997))
-
-	minDecl := field.NewMoneyDeclaration().WithMin(huge)
-	if _, err := bounded(minDecl, mustParse(t, "1"), usd); err == nil {
-		t.Fatal("bounded with min overflowing ScaleByExponent succeeded, want error")
-	}
-
-	maxDecl := field.NewMoneyDeclaration().WithMax(huge)
-	if _, err := bounded(maxDecl, mustParse(t, "1"), usd); err == nil {
-		t.Fatal("bounded with max overflowing ScaleByExponent succeeded, want error")
-	}
+	return s
 }
 
 func TestNewResult_ErrorPaths(t *testing.T) {
@@ -504,6 +502,34 @@ func TestMustResult_PanicsOnInvalidInput(t *testing.T) {
 			mustResult(tc.checkID, tc.outcome)
 		})
 	}
+}
+
+func TestOne(t *testing.T) {
+	got := one()
+	if got.Compare(mustParse(t, "1")) != 0 {
+		t.Errorf("one() = %v, want a value comparing equal to Parse(%q)", got, "1")
+	}
+}
+
+func TestMustParseDecimal_Valid(t *testing.T) {
+	got := mustParseDecimal("1")
+	if got.Compare(mustParse(t, "1")) != 0 {
+		t.Errorf("mustParseDecimal(%q) = %v, want a value comparing equal to Parse(%q)", "1", got, "1")
+	}
+}
+
+func TestMustParseDecimal_PanicsOnInvalidInput(t *testing.T) {
+	// mustParseDecimal's panic branch is never taken by its one real
+	// caller, one() (whose literal, "1", can never make decimal.Parse
+	// fail) -- but the branch must still be real and tested, not
+	// unreachable code the coverage bar should reject. This drives it
+	// directly with text decimal.Parse itself rejects.
+	defer func() {
+		if recover() == nil {
+			t.Fatal("mustParseDecimal(invalid) did not panic")
+		}
+	}()
+	mustParseDecimal("not-a-number")
 }
 
 func TestPurity_NoForbiddenImports(t *testing.T) {

@@ -26,12 +26,12 @@
 // # API surface
 //
 // The exported surface here is the contract the check implementations
-// (tasks T2-T5) build against: Input, Tables, OnFunc, and Evaluate, whose
-// signature is func(Input) ([]verdict.Result, error) — one Result per
-// applicable check, in dispatch order. Each individual check is a
+// build against: Input, Tables, OnFunc, and Evaluate, whose signature is
+// func(Input) ([]verdict.Result, error) — one Result per applicable check,
+// in dispatch order. Each individual check is a
 // func(Input) (verdict.Result, error) registered in the dispatch table
-// keyed by field.Kind. MU-01 (scale.go) and MU-14 (exponent.go) are real;
-// the rest are INDETERMINATE placeholders until MU-02/MU-13 (T3),
-// MU-06/MU-07 (T4), and MU-03 (T5) land — only their bodies change, not
-// this contract.
+// keyed by field.Kind, implemented in its own file alongside that file's
+// tests: MU-01 (scale.go), MU-02 (precision.go), MU-03 (currency.go),
+// MU-06 (sign.go), MU-07 (range.go), MU-13 (percentage.go), and MU-14
+// (exponent.go).
 package mu

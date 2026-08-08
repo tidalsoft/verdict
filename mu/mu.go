@@ -12,15 +12,20 @@ import (
 // Input is the per-field evaluation context every check receives: which
 // field is being evaluated (Field), its value and how that value arrived
 // (Value, Provenance), the ruleset's field declarations (Registry), the
-// injected reference tables (Tables), and the sibling field values the
-// checks may consult (Vals).
+// injected reference tables (Tables), and the sibling and state-derived
+// values the checks may consult (Vals).
 //
-// Vals maps a sibling field path to its raw string value — e.g.
-// "arguments.type" → "refund" for MU-06's sign_when conditions, or
-// "arguments.currency" → "USD" for MU-03's target resolution. Absence from
-// Vals is absence, never an empty string: a check that needs a sibling
-// value it cannot find returns INDETERMINATE rather than guessing (the
-// comma-ok idiom, mirroring field.Registry.Lookup).
+// Vals maps a field path to its raw string value, and carries two distinct
+// kinds of data under that one map: sibling values from the same tool call
+// (e.g. "arguments.type" → "refund" for MU-06's sign_when conditions, or
+// "arguments.currency" → "USD" for MU-14's currency_field), and
+// state-derived data the caller has flattened into the same map under
+// whatever path a declaration names (e.g. MU-03's target_currency_field --
+// see field.MoneyDeclaration.TargetCurrencyField's doc comment for why:
+// this package has no representation of "state" distinct from a value in
+// Vals). Absence from Vals is absence, never an empty string: a check that
+// needs a value it cannot find returns INDETERMINATE rather than guessing
+// (the comma-ok idiom, mirroring field.Registry.Lookup).
 type Input struct {
 	Field      string
 	Value      decimal.Decimal
@@ -147,20 +152,21 @@ func evaluateChecks(in Input, checks []OnFunc) ([]verdict.Result, error) {
 // declaration found is a MoneyDeclaration, collapsing both failure modes
 // -- no declaration at all, and a declaration for a different kind --
 // into the single comma-ok signal every money-only check (MU-01, MU-03,
-// MU-06, MU-14) starts with and treats identically: INDETERMINATE. There
-// is nothing money-specific to say about a field that isn't declared as
-// money in the first place, so the two cases share one helper rather than
-// each check re-deriving the same two-step lookup.
+// MU-06, MU-07, MU-14) starts with and treats identically: INDETERMINATE.
+// There is nothing money-specific to say about a field that isn't declared
+// as money in the first place, so all five share one helper rather than
+// each re-deriving the same two-step lookup.
 //
-// MU-07 is deliberately not on that list even though checksFor dispatches
-// it for field.KindMoney. checksFor also dispatches checkMU07 for
-// field.KindQuantity (SPEC-MU §3 range_bound applies to both kinds), and
-// field.QuantityDeclaration is a distinct concrete type from
-// MoneyDeclaration -- moneyDeclaration(in) returns ok == false for every
-// quantity field, so a checkMU07 body built on this helper would go
-// INDETERMINATE forever for quantity fields, silently. checkMU07 (T4)
-// needs its own kind dispatch (a type switch on the two declaration types,
-// or two sibling helpers) rather than reusing this one.
+// checksFor also dispatches checkMU07 for field.KindQuantity (SPEC-MU §3
+// range_bound's Requires clause -- "min and/or max" -- is not restricted
+// to money), and field.QuantityDeclaration is a distinct concrete type
+// from MoneyDeclaration, so moneyDeclaration(in) returns ok == false for
+// every quantity field. That is the correct outcome today, not a gap:
+// field.QuantityDeclaration exposes no general-purpose min/max bound at
+// all (its one Max accessor is reserved for MU-15's canonical-unit
+// overflow check -- see field/quantity.go), so there is nothing for
+// checkMU07 to evaluate on a quantity field regardless of how it looks the
+// declaration up.
 func moneyDeclaration(in Input) (field.MoneyDeclaration, bool) {
 	decl, ok := in.Registry.Lookup(in.Field)
 	if !ok {
@@ -218,46 +224,34 @@ func asciiUpper(s string) string {
 	return string(b)
 }
 
-// bounded evaluates MU-07's range_bound check for a money field: it
-// normalizes the value and the declared bounds to minor units via
-// ScaleByExponent using the currency's ISO 4217 minor-unit exponent, then
-// compares with inclusive semantics unless ExclusiveMin/ExclusiveMax flip
-// equality. It returns INDETERMINATE when no bound is declared or the
-// currency carries no minor-unit exponent (XAU, XXX, ...), FAIL when the
-// value falls outside a bound, and PASS otherwise. Scaling both sides by
-// the same exponent preserves the comparison whether the inputs were
-// already in minor units or in major units.
-func bounded(decl field.MoneyDeclaration, value decimal.Decimal, currency tables.Currency) (verdict.Result, error) {
-	min, hasMin := decl.Min()
-	max, hasMax := decl.Max()
-	if !hasMin && !hasMax {
-		return indeterminateResult("MU-07")
-	}
-	exponent, ok := currency.MinorUnitExponent()
-	if !ok {
-		return indeterminateResult("MU-07")
-	}
-	valueMinor, err := value.ScaleByExponent(exponent)
-	if err != nil {
-		return verdict.Result{}, err
-	}
-	var minMinor, maxMinor decimal.Decimal
+// bounded evaluates MU-07's range_bound comparison itself: value against
+// min and max, both already expressed in the same units as value by the
+// time they reach this function, with inclusive semantics unless decl's
+// ExclusiveMin/ExclusiveMax flip equality at that boundary. hasMin/hasMax
+// mirror checkMU07's own comma-ok read of decl.Min()/decl.Max() -- passed
+// through explicitly, rather than re-derived here from decl, because decl
+// itself always carries the raw, un-normalized bound: getting min and max
+// into value's units at all is checkMU07's job, not this function's (see
+// its doc comment for why, and how). decl is still passed in, for
+// ExclusiveMin()/ExclusiveMax() alone.
+//
+// SPEC-MU §3 MU-07's evaluation clause -- "Value below min or above max →
+// FAIL" -- is exactly this comparison, performed in exact decimal
+// arithmetic (decimal.Compare, whose own doc comment already cites
+// MU-07): "never in floating point" is satisfied by that exactness, not
+// by any unit conversion, which is why this function needs no currency
+// and cannot itself fail -- unlike an earlier version of this function,
+// which folded unit normalization in here too and could error on
+// ScaleByExponent overflow.
+func bounded(decl field.MoneyDeclaration, value decimal.Decimal, min decimal.Decimal, hasMin bool, max decimal.Decimal, hasMax bool) (verdict.Result, error) {
 	if hasMin {
-		minMinor, err = min.ScaleByExponent(exponent)
-		if err != nil {
-			return verdict.Result{}, err
-		}
-		cmp := valueMinor.Compare(minMinor)
+		cmp := value.Compare(min)
 		if cmp < 0 || (cmp == 0 && decl.ExclusiveMin()) {
 			return failResult("MU-07")
 		}
 	}
 	if hasMax {
-		maxMinor, err = max.ScaleByExponent(exponent)
-		if err != nil {
-			return verdict.Result{}, err
-		}
-		cmp := valueMinor.Compare(maxMinor)
+		cmp := value.Compare(max)
 		if cmp > 0 || (cmp == 0 && decl.ExclusiveMax()) {
 			return failResult("MU-07")
 		}
@@ -267,9 +261,20 @@ func bounded(decl field.MoneyDeclaration, value decimal.Decimal, currency tables
 
 // newResult builds a Class D result at block severity — the default for all
 // seven checks — with the given outcome. It is the single construction seam
-// for every result this package produces.
+// for every result this package produces at the class default severity.
 func newResult(checkID string, outcome verdict.Outcome) (verdict.Result, error) {
 	return verdict.NewResult(checkID, verdict.ClassD, verdict.SeverityBlock, outcome)
+}
+
+// warnResult builds a Class D result at warn severity, for the one
+// documented case in this package where a check's severity is not its
+// class default: MU-13's domain: hundred branch (SPEC-MU §3: "value ≤ 1
+// and value ≠ 0 → FAIL at severity warn only... A legitimate 0.5% exists;
+// this is genuinely ambiguous in that direction, so it is asymmetric by
+// design"). Every other check and every other branch of MU-13 itself uses
+// newResult's block default instead.
+func warnResult(checkID string, outcome verdict.Outcome) (verdict.Result, error) {
+	return verdict.NewResult(checkID, verdict.ClassD, verdict.SeverityWarn, outcome)
 }
 
 // mustResult builds a verdict.Result for a checkID and Outcome the caller
@@ -305,6 +310,47 @@ func mustResult(checkID string, outcome verdict.Outcome) verdict.Result {
 	return res
 }
 
+// one returns the exact decimal constant 1 -- MU-13's unit-interval
+// boundary (percentage.go), this package's only need for a fixed decimal
+// literal. It takes no argument, unlike the mustDecimal(s string) helper
+// it replaces: a zero-argument signature means no future call site can
+// thread new, unvetted, data-dependent text through it the way a
+// parameterized helper would invite. Getting a different constant out of
+// this package requires writing a new function, a visible and deliberate
+// act, not a one-line reuse of an existing helper with a different string.
+//
+// one() wraps mustParseDecimal, which retains the parse-and-panic
+// mechanism (and its parameter) as an internal primitive: one()'s own
+// literal, "1", can never actually make decimal.Parse fail, so the only
+// way to exercise -- and therefore test -- that panic branch at all is
+// through a caller that can pass it something invalid. mustParseDecimal is
+// deliberately not called from anywhere else in this package; one() is its
+// one real caller.
+func one() decimal.Decimal {
+	return mustParseDecimal("1")
+}
+
+// mustParseDecimal parses s as an exact decimal, panicking if s is not
+// valid decimal text. It exists for the same "fail fast, fail loudly on a
+// literal that should be infallible" reason mustResult does (see its doc
+// comment): one()'s call to mustParseDecimal("1") can never actually reach
+// the panic, so threading an `if err != nil` branch through one() itself
+// would be dead code the coverage bar must reject. Deliberately not
+// exported, nor added to the decimal package itself: decimal is a public
+// Apache-2.0 library, and a general-purpose "build me a literal" seam
+// there would be a permanent addition to its contract that only this
+// package's one constant needs.
+// TestMustParseDecimal_PanicsOnInvalidInput exercises the panic directly
+// with deliberately invalid input, so the branch is real and tested, not
+// merely unreachable in the sense that would violate the coverage bar.
+func mustParseDecimal(s string) decimal.Decimal {
+	d, err := decimal.Parse(s)
+	if err != nil {
+		panic(fmt.Sprintf("mu: mustParseDecimal(%q): %v", s, err))
+	}
+	return d
+}
+
 // indeterminateResult builds the INDETERMINATE result a check returns when
 // a required declaration, schema, or piece of state was absent.
 func indeterminateResult(checkID string) (verdict.Result, error) {
@@ -323,13 +369,7 @@ func passResult(checkID string) (verdict.Result, error) {
 	return newResult(checkID, verdict.OutcomePass)
 }
 
-// The remaining check functions are placeholders: each returns
-// INDETERMINATE until its real branch matrix lands (MU-02/MU-13 in T3,
-// MU-06/MU-07 in T4, MU-03 in T5). Their signatures are the frozen
-// contract; only the bodies change. MU-01 and MU-14 are implemented in
-// scale.go and exponent.go respectively.
-func checkMU02(_ Input) (verdict.Result, error) { return indeterminateResult("MU-02") }
-func checkMU03(_ Input) (verdict.Result, error) { return indeterminateResult("MU-03") }
-func checkMU13(_ Input) (verdict.Result, error) { return indeterminateResult("MU-13") }
-func checkMU06(_ Input) (verdict.Result, error) { return indeterminateResult("MU-06") }
-func checkMU07(_ Input) (verdict.Result, error) { return indeterminateResult("MU-07") }
+// checkMU01, checkMU02, checkMU03, checkMU06, checkMU07, checkMU13, and
+// checkMU14 are each implemented in their own file (scale.go, precision.go,
+// currency.go, sign.go, range.go, percentage.go, and exponent.go
+// respectively), alongside that file's tests.

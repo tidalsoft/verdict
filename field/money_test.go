@@ -85,6 +85,9 @@ func TestMoneyDeclaration_ZeroValue(t *testing.T) {
 	if _, ok := d.CurrencyField(); ok {
 		t.Fatal("CurrencyField() on fresh declaration: ok = true, want false")
 	}
+	if _, ok := d.TargetCurrencyField(); ok {
+		t.Fatal("TargetCurrencyField() on fresh declaration: ok = true, want false")
+	}
 	if _, ok := d.Scale(); ok {
 		t.Fatal("Scale() on fresh declaration: ok = true, want false")
 	}
@@ -129,6 +132,61 @@ func TestMoneyDeclaration_WithCurrencyField_Empty(t *testing.T) {
 	if _, err := NewMoneyDeclaration().WithCurrencyField(""); err == nil {
 		t.Fatal("WithCurrencyField(\"\"): expected error, got nil")
 	}
+}
+
+func TestMoneyDeclaration_WithTargetCurrencyField(t *testing.T) {
+	d, err := NewMoneyDeclaration().WithTargetCurrencyField("arguments.target_currency")
+	if err != nil {
+		t.Fatalf("WithTargetCurrencyField: unexpected error: %v", err)
+	}
+	got, ok := d.TargetCurrencyField()
+	if !ok || got != "arguments.target_currency" {
+		t.Fatalf("TargetCurrencyField() = (%q, %v), want (%q, true)", got, ok, "arguments.target_currency")
+	}
+}
+
+func TestMoneyDeclaration_WithTargetCurrencyField_Empty(t *testing.T) {
+	if _, err := NewMoneyDeclaration().WithTargetCurrencyField(""); err == nil {
+		t.Fatal("WithTargetCurrencyField(\"\"): expected error, got nil")
+	}
+}
+
+func TestMoneyDeclaration_TargetCurrencyField_RejectsSelfReference(t *testing.T) {
+	// A currency_field and target_currency_field naming the same path
+	// would make MU-03 compare a currency against itself and PASS
+	// unconditionally -- rejected regardless of which is declared first.
+	t.Run("currency_field declared first", func(t *testing.T) {
+		d, err := NewMoneyDeclaration().WithCurrencyField("arguments.currency")
+		if err != nil {
+			t.Fatalf("WithCurrencyField: unexpected error: %v", err)
+		}
+		if _, err := d.WithTargetCurrencyField("arguments.currency"); err == nil {
+			t.Fatal("WithTargetCurrencyField(same path as currency_field): expected error, got nil")
+		}
+	})
+	t.Run("target_currency_field declared first", func(t *testing.T) {
+		d, err := NewMoneyDeclaration().WithTargetCurrencyField("arguments.currency")
+		if err != nil {
+			t.Fatalf("WithTargetCurrencyField: unexpected error: %v", err)
+		}
+		if _, err := d.WithCurrencyField("arguments.currency"); err == nil {
+			t.Fatal("WithCurrencyField(same path as target_currency_field): expected error, got nil")
+		}
+	})
+	t.Run("distinct paths still succeed", func(t *testing.T) {
+		d, err := NewMoneyDeclaration().WithCurrencyField("arguments.currency")
+		if err != nil {
+			t.Fatalf("WithCurrencyField: unexpected error: %v", err)
+		}
+		d, err = d.WithTargetCurrencyField("arguments.target_currency")
+		if err != nil {
+			t.Fatalf("WithTargetCurrencyField(distinct path): unexpected error: %v", err)
+		}
+		got, ok := d.TargetCurrencyField()
+		if !ok || got != "arguments.target_currency" {
+			t.Fatalf("TargetCurrencyField() = (%q, %v), want (%q, true)", got, ok, "arguments.target_currency")
+		}
+	})
 }
 
 func TestMoneyDeclaration_WithScale(t *testing.T) {

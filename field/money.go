@@ -123,6 +123,9 @@ type MoneyDeclaration struct {
 	currencyField    string
 	hasCurrencyField bool
 
+	targetCurrencyField    string
+	hasTargetCurrencyField bool
+
 	scale    Scale
 	hasScale bool
 
@@ -152,6 +155,24 @@ func (d MoneyDeclaration) Kind() Kind { return KindMoney }
 // currency, if declared.
 func (d MoneyDeclaration) CurrencyField() (string, bool) {
 	return d.currencyField, d.hasCurrencyField
+}
+
+// TargetCurrencyField returns the path to the field naming the currency
+// this amount is being compared against, if declared (MU-03
+// currency_mismatch's "target currency").
+//
+// SPEC-MU §3 MU-03 requires "a resolvable target currency, supplied either
+// in state or as a second declared field," without saying how a
+// declaration expresses either option. This attribute models the second
+// option literally: a second field path, resolved through the same
+// sibling-value mechanism as CurrencyField (see mu.Input.Vals). There is
+// deliberately no separate representation of "state" here — this
+// package's Registry and the mu package's Input carry no concept of
+// account or system state distinct from a sibling field's value, so a
+// caller wanting to compare against state-derived data supplies it the
+// same way: as a value in Vals at the path this field names.
+func (d MoneyDeclaration) TargetCurrencyField() (string, bool) {
+	return d.targetCurrencyField, d.hasTargetCurrencyField
 }
 
 // Scale returns the declared scale (minor_units or major_units), if any.
@@ -193,13 +214,41 @@ func (d MoneyDeclaration) ExclusiveMax() bool { return d.exclusiveMax }
 func (d MoneyDeclaration) Nonzero() bool { return d.nonzero }
 
 // WithCurrencyField declares the path to this amount's currency field.
-// path must be non-empty.
+// path must be non-empty, and must not equal an already-declared
+// TargetCurrencyField -- see WithTargetCurrencyField for why.
 func (d MoneyDeclaration) WithCurrencyField(path string) (MoneyDeclaration, error) {
 	if path == "" {
 		return MoneyDeclaration{}, errors.New("field: currency_field must not be empty")
 	}
+	if d.hasTargetCurrencyField && path == d.targetCurrencyField {
+		return MoneyDeclaration{}, fmt.Errorf("field: currency_field must not equal target_currency_field (%q)", path)
+	}
 	d.currencyField = path
 	d.hasCurrencyField = true
+	return d, nil
+}
+
+// WithTargetCurrencyField declares the path to the field naming the
+// currency this amount is compared against for MU-03. path must be
+// non-empty, and must not equal an already-declared CurrencyField: a
+// MoneyDeclaration whose currency_field and target_currency_field name the
+// same path would compare a currency against itself, so MU-03 would PASS
+// unconditionally without ever verifying anything -- exactly the
+// "reports success while verifying nothing" failure mode SPEC-PG §2.1 and
+// this codebase's invariants exist to prevent. Rejecting it here, at
+// construction, means a MoneyDeclaration that could produce that outcome
+// is simply never constructible (this package's "constructors validate
+// everything; no half-initialized objects" principle), rather than a
+// vacuous check silently shipping in a ruleset.
+func (d MoneyDeclaration) WithTargetCurrencyField(path string) (MoneyDeclaration, error) {
+	if path == "" {
+		return MoneyDeclaration{}, errors.New("field: target_currency_field must not be empty")
+	}
+	if d.hasCurrencyField && path == d.currencyField {
+		return MoneyDeclaration{}, fmt.Errorf("field: target_currency_field must not equal currency_field (%q)", path)
+	}
+	d.targetCurrencyField = path
+	d.hasTargetCurrencyField = true
 	return d, nil
 }
 
