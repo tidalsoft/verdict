@@ -3,9 +3,10 @@
 // MU-03 currency_mismatch, MU-06 sign_convention, MU-07 range_bound,
 // MU-13 percentage_domain, and MU-14 minor_unit_exponent. Each check is a
 // pure function of a single field's Input; Evaluate dispatches a field to
-// the checks its declared Kind carries, in the spec's internal order
-// (MU-01 → MU-14 → MU-02 → MU-03 → MU-13 → MU-06 → MU-07), and returns the
-// first FAIL, else the first non-PASS, else PASS.
+// the checks its declared Kind carries, in ascending check-ID order
+// (SPEC-MU §2.4), and returns every check's Result — evaluation does not
+// short-circuit on a FAIL, per §2.4, so all applicable checks always run
+// and all their results are always reported.
 //
 // # Purity invariant
 //
@@ -22,11 +23,15 @@
 // the importer's concern (gatepost), not this package's; a downstream
 // assembler keeps its own richer per-check record.
 //
-// # Frozen API surface
+// # API surface
 //
 // The exported surface here is the contract the check implementations
-// (tasks T2-T5) build against: Input, Tables, OnFunc, and Evaluate. Each
-// check is a func(Input) (verdict.Result, error) registered in the dispatch
-// table keyed by field.Kind; the concrete check bodies land in later tasks,
-// and this package's dispatch and aggregation logic is already real.
+// (tasks T2-T5) build against: Input, Tables, OnFunc, and Evaluate, whose
+// signature is func(Input) ([]verdict.Result, error) — one Result per
+// applicable check, in dispatch order. Each individual check is a
+// func(Input) (verdict.Result, error) registered in the dispatch table
+// keyed by field.Kind. MU-01 (scale.go) and MU-14 (exponent.go) are real;
+// the rest are INDETERMINATE placeholders until MU-02/MU-13 (T3),
+// MU-06/MU-07 (T4), and MU-03 (T5) land — only their bodies change, not
+// this contract.
 package mu
