@@ -9,6 +9,19 @@
 GOLANGCI_LINT_VERSION := v2.12.2
 GO_TEST_COVERAGE_VERSION := v2.19.0
 
+# `go install` puts pinned tools (golangci-lint, go-test-coverage) in GOBIN,
+# or GOPATH/bin if GOBIN is unset -- and neither directory is on PATH by
+# default on a fresh checkout. Without this, `make check` fails with a
+# tooling error that reads like a lint failure rather than what it actually
+# is: this Makefile not looking in the place its own tools were installed.
+# Appended after the caller's PATH, not prepended, so a tool a developer has
+# deliberately placed earlier on PATH still wins over the pinned one here.
+GO_TOOL_BIN := $(shell go env GOBIN)
+ifeq ($(GO_TOOL_BIN),)
+GO_TOOL_BIN := $(shell go env GOPATH)/bin
+endif
+export PATH := $(PATH):$(GO_TOOL_BIN)
+
 COVER_DIR := coverage
 COVER_PROFILE := $(COVER_DIR)/cover.out
 
@@ -39,13 +52,22 @@ test-integration:
 # golangci-lint is never silently skipped: if it isn't on PATH this fails
 # loudly with the install command, rather than letting `make check` report
 # green without having linted anything.
+# The tool invocation below is folded into the same shell line as the
+# existence check (`fi; \` rather than a fresh recipe line) rather than left
+# as a standalone command. Recipe lines with no shell metacharacters get
+# exec'd directly by make instead of via a shell, and on the GNU Make 3.81
+# that macOS still ships, that direct-exec path does not see the PATH this
+# Makefile just exported -- it would report golangci-lint missing even
+# though the check above just found it. Sharing the shell invocation avoids
+# relying on a second, differently-behaved lookup for the same tool.
 lint:
 	@if ! command -v golangci-lint >/dev/null 2>&1; then \
-		echo "golangci-lint not found on PATH."; \
+		echo "golangci-lint not found on PATH or in $(GO_TOOL_BIN)."; \
 		echo ".golangci.yml uses the v2 config schema; install the pinned v2 version:"; \
 		echo "  go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION)"; \
 		exit 1; \
-	fi
+	fi; \
+	echo "golangci-lint run ./..."; \
 	golangci-lint run ./...
 
 # Produces a coverage profile AND enforces the threshold in .testcoverage.yml
@@ -56,11 +78,12 @@ cover:
 	@mkdir -p $(COVER_DIR)
 	go test -coverprofile=$(COVER_PROFILE) ./...
 	@if ! command -v go-test-coverage >/dev/null 2>&1; then \
-		echo "go-test-coverage not found on PATH."; \
+		echo "go-test-coverage not found on PATH or in $(GO_TOOL_BIN)."; \
 		echo "Install the pinned version:"; \
 		echo "  go install github.com/vladopajic/go-test-coverage/v2@$(GO_TEST_COVERAGE_VERSION)"; \
 		exit 1; \
-	fi
+	fi; \
+	echo "go-test-coverage --config=.testcoverage.yml"; \
 	go-test-coverage --config=.testcoverage.yml
 
 check: build vet lint test test-integration cover
