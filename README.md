@@ -61,7 +61,7 @@ func main() {
 `Result` and `ComputeAggregate` are the vocabulary this library exposes;
 specific check implementations named by rule ID (`MU-*`, `PG-*`) are
 provided by code that imports this library, not by this module itself.
-[Gatepost](https://github.com/tidalsoft/gatepost), a hosted service from
+[Gatepost](https://tidalsoft.ai), a hosted service from
 Tidalsoft, implements this library in production if you want a running
 service rather than a library to build one on.
 
