@@ -25,8 +25,17 @@ func TestQuantityDeclaration_ZeroValue(t *testing.T) {
 	if d.UnitRequired() {
 		t.Fatal("UnitRequired() on fresh declaration = true, want false")
 	}
+	if _, ok := d.Min(); ok {
+		t.Fatal("Min() on fresh declaration: ok = true, want false")
+	}
 	if _, ok := d.Max(); ok {
 		t.Fatal("Max() on fresh declaration: ok = true, want false")
+	}
+	if d.ExclusiveMin() {
+		t.Fatal("ExclusiveMin() on fresh declaration = true, want false")
+	}
+	if d.ExclusiveMax() {
+		t.Fatal("ExclusiveMax() on fresh declaration = true, want false")
 	}
 	if _, ok := d.Tolerance(); ok {
 		t.Fatal("Tolerance() on fresh declaration: ok = true, want false")
@@ -50,6 +59,55 @@ func TestQuantityDeclaration_WithDimension(t *testing.T) {
 func TestQuantityDeclaration_WithDimension_Empty(t *testing.T) {
 	if _, err := NewQuantityDeclaration().WithDimension(""); err == nil {
 		t.Fatal("WithDimension(\"\"): expected error, got nil")
+	}
+}
+
+// TestQuantityDeclaration_WithDimension_Unrecognised is the regression for
+// the defect SPEC-MU §2.2 forbids: an unrecognised dimension string (not
+// merely empty) must be rejected at construction, the same way an invalid
+// Scale/Sign/Domain already is, rather than reaching MU-04 at evaluation
+// and manufacturing a FAIL against a value that contradicts nothing.
+// "weight" is deliberately plausible-sounding text, not an obvious typo,
+// and "Mass" pins that matching is exact (no case-folding) against
+// tables.ParseDimension's own closed set.
+func TestQuantityDeclaration_WithDimension_Unrecognised(t *testing.T) {
+	cases := []string{"weight", "Mass", "digital_storage", "currency_per_unit", "kg"}
+	for _, dim := range cases {
+		t.Run(dim, func(t *testing.T) {
+			if _, err := NewQuantityDeclaration().WithDimension(dim); err == nil {
+				t.Fatalf("WithDimension(%q): expected error, got nil", dim)
+			}
+		})
+	}
+}
+
+// TestQuantityDeclaration_WithDimension_SpecSpelling pins SPEC-MU §4's own
+// "Supported dimensions" spelling for the two tokens that differ from this
+// package's internal one (tables.Dimension.String()): "digital storage" (a
+// space) and "currency-per-unit" (a hyphen), where String() renders
+// "digital_storage" and "currency_per_unit". A ruleset spelling them the
+// spec's way must be accepted, and Dimension() reports back the internal
+// spelling MU-04 compares against (mu.checkMU04), not the string the
+// ruleset supplied -- see WithDimension's own doc comment.
+func TestQuantityDeclaration_WithDimension_SpecSpelling(t *testing.T) {
+	cases := []struct {
+		specSpelling string
+		wantStored   string
+	}{
+		{"digital storage", "digital_storage"},
+		{"currency-per-unit", "currency_per_unit"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.specSpelling, func(t *testing.T) {
+			d, err := NewQuantityDeclaration().WithDimension(tc.specSpelling)
+			if err != nil {
+				t.Fatalf("WithDimension(%q): unexpected error: %v", tc.specSpelling, err)
+			}
+			got, ok := d.Dimension()
+			if !ok || got != tc.wantStored {
+				t.Fatalf("Dimension() = (%q, %v), want (%q, true)", got, ok, tc.wantStored)
+			}
+		})
 	}
 }
 
@@ -98,7 +156,11 @@ func TestQuantityDeclaration_WithUnitRequired(t *testing.T) {
 	}
 }
 
-func TestQuantityDeclaration_MaxAndTolerance(t *testing.T) {
+func TestQuantityDeclaration_MinMaxAndTolerance(t *testing.T) {
+	min, err := decimal.Parse("0")
+	if err != nil {
+		t.Fatalf("decimal.Parse: %v", err)
+	}
 	max, err := decimal.Parse("1000")
 	if err != nil {
 		t.Fatalf("decimal.Parse: %v", err)
@@ -108,8 +170,12 @@ func TestQuantityDeclaration_MaxAndTolerance(t *testing.T) {
 		t.Fatalf("decimal.Parse: %v", err)
 	}
 
-	d := NewQuantityDeclaration().WithMax(max).WithTolerance(tolerance)
+	d := NewQuantityDeclaration().WithMin(min).WithMax(max).WithTolerance(tolerance)
 
+	gotMin, ok := d.Min()
+	if !ok || gotMin.Compare(min) != 0 {
+		t.Fatalf("Min() = (%v, %v), want (%v, true)", gotMin, ok, min)
+	}
 	gotMax, ok := d.Max()
 	if !ok || gotMax.Compare(max) != 0 {
 		t.Fatalf("Max() = (%v, %v), want (%v, true)", gotMax, ok, max)
@@ -117,6 +183,20 @@ func TestQuantityDeclaration_MaxAndTolerance(t *testing.T) {
 	gotTolerance, ok := d.Tolerance()
 	if !ok || gotTolerance.Compare(tolerance) != 0 {
 		t.Fatalf("Tolerance() = (%v, %v), want (%v, true)", gotTolerance, ok, tolerance)
+	}
+}
+
+func TestQuantityDeclaration_ExclusiveMinMax(t *testing.T) {
+	d := NewQuantityDeclaration()
+	if d.ExclusiveMin() || d.ExclusiveMax() {
+		t.Fatal("ExclusiveMin()/ExclusiveMax() before declaration = true, want false")
+	}
+	d = d.WithExclusiveMin().WithExclusiveMax()
+	if !d.ExclusiveMin() {
+		t.Fatal("ExclusiveMin() after WithExclusiveMin = false, want true")
+	}
+	if !d.ExclusiveMax() {
+		t.Fatal("ExclusiveMax() after WithExclusiveMax = false, want true")
 	}
 }
 

@@ -79,38 +79,72 @@ func (s Sign) valid() bool {
 	return s == SignPositive || s == SignNegative || s == SignAny
 }
 
-// ConditionalSign pairs a condition -- another field at the same argument
-// level equalling a specific value -- with the Sign required when that
-// condition holds (MU-06's sign_when form, e.g. "when
-// arguments.type is refund, sign must be negative").
-type ConditionalSign struct {
-	whenField string
-	whenValue string
-	sign      Sign
+// WhenEntry is a single path/value pair inside a sign_when clause's `when`
+// map (SPEC-MU §3 MU-06, §2.4.2). A clause's `when` map may name more than
+// one field -- `when: { type: refund, category: fees }` -- so
+// ConditionalSign holds a list of these rather than one path/value pair;
+// every entry must agree with the resolved request for the clause to
+// match (see the ConditionalSign doc comment).
+type WhenEntry struct {
+	path  string
+	value Value
 }
 
-// NewConditionalSign constructs a ConditionalSign. whenField must be
-// non-empty; whenValue may be empty (a condition legitimately matching an
-// empty string); sign must be one of SignPositive, SignNegative, or
-// SignAny.
-func NewConditionalSign(whenField, whenValue string, sign Sign) (ConditionalSign, error) {
-	if whenField == "" {
-		return ConditionalSign{}, errors.New("field: sign_when condition field must not be empty")
+// NewWhenEntry constructs a WhenEntry. path must be non-empty; value may
+// be any Value, including a non-comparable one (SPEC-MU §3 vector 122: a
+// clause whose stated value is itself a JSON array is undecidable, not a
+// construction error -- this package accepts it and lets MU-06 report
+// that outcome, rather than rejecting it at declaration time).
+func NewWhenEntry(path string, value Value) (WhenEntry, error) {
+	if path == "" {
+		return WhenEntry{}, errors.New("field: sign_when when-entry path must not be empty")
+	}
+	return WhenEntry{path: path, value: value}, nil
+}
+
+// Path returns the argument path this entry inspects.
+func (e WhenEntry) Path() string { return e.path }
+
+// Value returns the value this entry's path must resolve to (SPEC-MU §3's
+// comparable-shape equality, field.Value.Equal) for this entry to agree.
+func (e WhenEntry) Value() Value { return e.value }
+
+// ConditionalSign pairs a `when` clause -- one or more WhenEntry
+// conditions that must all agree with the resolved request -- with the
+// Sign required when the clause matches (MU-06's sign_when form, e.g.
+// "when arguments.type is refund, sign must be negative"). SPEC-MU §3
+// defines three states a clause can stand in against a request (matches /
+// undecidable / definitively does not match); this type carries only the
+// clause's declaration, and mu.resolveSign is what applies that taxonomy
+// against a request's resolved values.
+type ConditionalSign struct {
+	when []WhenEntry
+	sign Sign
+}
+
+// NewConditionalSign constructs a ConditionalSign. when must be
+// non-empty -- an empty `when` map matches every request unconditionally,
+// which SPEC-MU §3 calls out as "a pointless way to write an
+// unconditional sign," so this package refuses to construct it rather
+// than accept a clause that can never do anything a plain `sign`
+// wouldn't; sign must be one of SignPositive, SignNegative, or SignAny.
+func NewConditionalSign(when []WhenEntry, sign Sign) (ConditionalSign, error) {
+	if len(when) == 0 {
+		return ConditionalSign{}, errors.New("field: sign_when clause must declare at least one when entry")
 	}
 	if !sign.valid() {
-		return ConditionalSign{}, fmt.Errorf("field: sign_when condition on %q: invalid sign %v", whenField, sign)
+		return ConditionalSign{}, fmt.Errorf("field: sign_when clause: invalid sign %v", sign)
 	}
-	return ConditionalSign{whenField: whenField, whenValue: whenValue, sign: sign}, nil
+	return ConditionalSign{when: append([]WhenEntry(nil), when...), sign: sign}, nil
 }
 
-// WhenField returns the path of the field this condition inspects.
-func (c ConditionalSign) WhenField() string { return c.whenField }
+// When returns the clause's when-entries. The returned slice is a
+// defensive copy; mutating it has no effect on c.
+func (c ConditionalSign) When() []WhenEntry {
+	return append([]WhenEntry(nil), c.when...)
+}
 
-// WhenValue returns the value whenField must equal for this condition to
-// match.
-func (c ConditionalSign) WhenValue() string { return c.whenValue }
-
-// Sign returns the sign required when this condition matches.
+// Sign returns the sign required when this clause matches.
 func (c ConditionalSign) Sign() Sign { return c.sign }
 
 // MoneyDeclaration is the field declaration for `kind: money`.

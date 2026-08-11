@@ -52,6 +52,11 @@ func TestParse_Success(t *testing.T) {
 		{"trailing zero preserved for MU-14", "49.90", "49.90"},
 		{"leading plus", "+49.99", "49.99"},
 		{"large magnitude", "9007199254740993", "9007199254740993"},
+		{"exponent, vector 42", "100e-2", "1.00"},
+		{"exponent, SPEC-MU §2.6.1 example", "5e-3", "0.005"},
+		{"exponent, SPEC-MU §2.6.1 example, no fractional digits", "1.2e3", "1200"},
+		{"exponent, uppercase E", "1E3", "1000"},
+		{"exponent, explicit plus", "1.5e+2", "150"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -76,9 +81,8 @@ func TestParse_Failure(t *testing.T) {
 		{"NaN is not a valid monetary value", "NaN"},
 		{"Infinity is not a valid monetary value", "Infinity"},
 		{"negative infinity", "-Infinity"},
-		{"scientific notation, positive exponent", "1E3"},
-		{"scientific notation, lowercase e", "1.5e10"},
-		{"scientific notation, negative exponent", "-2E-5"},
+		{"double exponent marker", "1e2e3"},
+		{"exponent with no digits", "1e"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -209,6 +213,47 @@ func TestDecimal_Add_OverflowError(t *testing.T) {
 	}
 }
 
+func TestDecimal_Mul(t *testing.T) {
+	cases := []struct {
+		name string
+		a    string
+		b    string
+		want string
+	}{
+		{"integers", "12", "3", "36"},
+		{"decimal factor", "50", "0.45359237", "22.6796185"},
+		{"negative operand", "-12", "3", "-36"},
+		{"both negative", "-12", "-3", "36"},
+		{"zero", "0", "12345.6789", "0"},
+		{"identity", "42.5", "1", "42.5"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			a := mustParse(t, tc.a)
+			b := mustParse(t, tc.b)
+			got, err := a.Mul(b)
+			if err != nil {
+				t.Fatalf("Mul unexpected error: %v", err)
+			}
+			want := mustParse(t, tc.want)
+			if got.Compare(want) != 0 {
+				t.Errorf("Mul(%s, %s) = %s, want %s", tc.a, tc.b, got, want)
+			}
+		})
+	}
+}
+
+func TestDecimal_Mul_OverflowError(t *testing.T) {
+	huge := newTestDecimal(9, 100000)
+	_, err := huge.Mul(huge)
+	if err == nil {
+		t.Fatal("Mul of two values overflowing the supported exponent range succeeded, want error")
+	}
+	if !strings.Contains(err.Error(), "decimal: multiply") {
+		t.Errorf("error %q missing operation context", err.Error())
+	}
+}
+
 // TestDecimal_Sub_ErrorMessageOperandOrder asserts Sub's error text reports
 // the operation it actually performed (d - other), not the reverse. A
 // message that names the wrong operand order is actively misleading when
@@ -275,6 +320,9 @@ func TestDecimal_DecimalPlaces(t *testing.T) {
 		{"0", 0},
 		{"-49.99", 2},
 		{"1000", 0},
+		{"100e-2", 2}, // vector 42: two decimal places, no point
+		{"5e-3", 3},   // SPEC-MU §2.6.1 worked example
+		{"1.2e3", 0},  // SPEC-MU §2.6.1 worked example
 	}
 	for _, tc := range cases {
 		t.Run(tc.in, func(t *testing.T) {
@@ -413,19 +461,43 @@ func TestDecimal_RangeBound_MinorUnitsNeverFloat(t *testing.T) {
 	}
 }
 
-// TestParse_RejectsScientificNotation asserts the rejection is reported
-// clearly and specifically, not just as a generic parse failure -- a caller
-// debugging a rejected tool-call argument should be told why.
-func TestParse_RejectsScientificNotation(t *testing.T) {
-	cases := []string{"1E3", "1.5e10", "-2E-5", "9e100000"}
+// TestParse_AcceptsScientificNotation asserts SPEC-MU §2.6.1's decimal-text
+// grammar is honoured: an exponent is part of the wire format, not an
+// extension to it, and must parse successfully -- see Parse's doc comment
+// for why an earlier version of this package rejected it and no longer
+// does.
+func TestParse_AcceptsScientificNotation(t *testing.T) {
+	cases := []struct {
+		in   string
+		want string
+	}{
+		{"1E3", "1000"},
+		{"1.5e10", "15000000000"},
+		{"-2E-5", "-0.00002"},
+		{"9e100000", ""}, // near apd's own exponent ceiling; only checked for no error below
+	}
+	for _, tc := range cases {
+		t.Run(tc.in, func(t *testing.T) {
+			d, err := Parse(tc.in)
+			if err != nil {
+				t.Fatalf("Parse(%q) unexpected error: %v", tc.in, err)
+			}
+			if tc.want != "" && d.String() != tc.want {
+				t.Errorf("Parse(%q).String() = %q, want %q", tc.in, d.String(), tc.want)
+			}
+		})
+	}
+}
+
+// TestParse_RejectsMalformedExponent asserts a syntactically broken
+// exponent (as opposed to no exponent at all) is still a parse error, not
+// silently ignored or truncated.
+func TestParse_RejectsMalformedExponent(t *testing.T) {
+	cases := []string{"1e2e3", "1e"}
 	for _, in := range cases {
 		t.Run(in, func(t *testing.T) {
-			_, err := Parse(in)
-			if err == nil {
+			if _, err := Parse(in); err == nil {
 				t.Fatalf("Parse(%q) succeeded, want error", in)
-			}
-			if !strings.Contains(err.Error(), "scientific notation") {
-				t.Errorf("error %q does not explain the rejection is about scientific notation", err.Error())
 			}
 		})
 	}
@@ -434,9 +506,10 @@ func TestParse_RejectsScientificNotation(t *testing.T) {
 // TestDecimal_String_NeverScientificNotation asserts String() always emits
 // plain decimal, including for values with an exponent large enough that
 // apd's own default formatting (String's "G" format) would switch to
-// scientific notation. This is the other half of Parse's scientific-notation
-// rejection: a value produced inside this package must remain parseable by
-// this package's own Parse, in the same wire format, all the way round.
+// scientific notation. A value produced inside this package -- including
+// one Parse itself accepted in exponential form, per SPEC-MU §2.6.1 -- must
+// remain parseable by this package's own Parse, in the same plain-decimal
+// wire format, all the way round.
 func TestDecimal_String_NeverScientificNotation(t *testing.T) {
 	cases := []Decimal{
 		newTestDecimal(9, 100000),  // largest exponent apd's Context permits

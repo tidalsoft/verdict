@@ -1,21 +1,31 @@
 // Package tables provides versioned reference tables: compiled-in,
 // immutable lookup data that Class D checks consult instead of guessing.
-// ISO 4217 currency minor-unit exponents (MU-14) and ISO 3166-1 alpha-2
-// country codes (MU-16) live here today; a unit registry (MU-04/MU-05) and
-// an IANA tzdata table backing PG-20 are expected to join this package's
-// pattern without restructuring it -- see the Versioned interface.
+// ISO 4217 currency minor-unit exponents (MU-14), ISO 3166-1 alpha-2
+// country codes (MU-16), and a unit registry (MU-04/MU-05/MU-07/MU-15)
+// live here today; an IANA tzdata table backing PG-20 is expected to join
+// this package's pattern without restructuring it -- see the Versioned
+// interface.
 //
 // # Purity and data sourcing
 //
 // The engine performs no network or filesystem access at evaluation time,
 // so every table here is compiled into the binary as ordinary Go source
-// rather than loaded from a file or fetched at runtime. That source is
-// itself generated, not hand-transcribed, from a committed snapshot of an
-// external authority -- see tables/generate/iso4217 and
-// tables/generate/iso3166 for exactly what was fetched, when, and how each
-// generator turns it into the *_data.go file it produces. Regenerating a
-// table means re-running the relevant generator against a freshly fetched
-// source, never hand-editing a *_data.go file.
+// rather than loaded from a file or fetched at runtime. For CurrencyTable
+// and CountryTable that source is generated, not hand-transcribed, from a
+// committed snapshot of an external authority -- see tables/generate/iso4217
+// and tables/generate/iso3166 for exactly what was fetched, when, and how
+// each generator turns it into the *_data.go file it produces. Regenerating
+// one of those two tables means re-running the relevant generator against a
+// freshly fetched source, never hand-editing its *_data.go file.
+//
+// UnitRegistry (unit_data.go) is the deliberate exception: there is no
+// single external authority a generator could snapshot the way ISO 4217
+// and ISO 3166 are single authorities, so its data is hand-curated
+// directly in source, versioned like any other change under this module's
+// own release discipline rather than regenerated. unit_data.go's own doc
+// comment states this and explains where each constant came from; nothing
+// about that file's editing process resembles currency_data.go's or
+// country_data.go's.
 //
 // # No package-level state
 //

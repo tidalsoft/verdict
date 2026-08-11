@@ -35,6 +35,48 @@ func TestPercentageDeclaration_ZeroValue(t *testing.T) {
 	if _, ok := d.NullSemantics(); ok {
 		t.Fatal("NullSemantics() on fresh declaration: ok = true, want false")
 	}
+	if _, ok := d.Min(); ok {
+		t.Fatal("Min() on fresh declaration: ok = true, want false")
+	}
+	if _, ok := d.Max(); ok {
+		t.Fatal("Max() on fresh declaration: ok = true, want false")
+	}
+	if d.ExclusiveMin() {
+		t.Fatal("ExclusiveMin() on fresh declaration = true, want false")
+	}
+	if d.ExclusiveMax() {
+		t.Fatal("ExclusiveMax() on fresh declaration = true, want false")
+	}
+}
+
+func TestPercentageDeclaration_MinMax(t *testing.T) {
+	min := mustDecimal(t, "0")
+	max := mustDecimal(t, "1")
+
+	d := NewPercentageDeclaration().WithMin(min).WithMax(max)
+
+	gotMin, ok := d.Min()
+	if !ok || gotMin.Compare(min) != 0 {
+		t.Fatalf("Min() = (%v, %v), want (%v, true)", gotMin, ok, min)
+	}
+	gotMax, ok := d.Max()
+	if !ok || gotMax.Compare(max) != 0 {
+		t.Fatalf("Max() = (%v, %v), want (%v, true)", gotMax, ok, max)
+	}
+}
+
+func TestPercentageDeclaration_ExclusiveMinMax(t *testing.T) {
+	d := NewPercentageDeclaration()
+	if d.ExclusiveMin() || d.ExclusiveMax() {
+		t.Fatal("ExclusiveMin()/ExclusiveMax() before declaration = true, want false")
+	}
+	d = d.WithExclusiveMin().WithExclusiveMax()
+	if !d.ExclusiveMin() {
+		t.Fatal("ExclusiveMin() after WithExclusiveMin = false, want true")
+	}
+	if !d.ExclusiveMax() {
+		t.Fatal("ExclusiveMax() after WithExclusiveMax = false, want true")
+	}
 }
 
 func TestPercentageDeclaration_WithDomain(t *testing.T) {

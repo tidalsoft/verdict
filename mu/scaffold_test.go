@@ -3,6 +3,7 @@ package mu
 import (
 	"embed"
 	"errors"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -33,26 +34,49 @@ func mustRegistry(t *testing.T, decl field.Declaration) field.Registry {
 	return r
 }
 
-// fixedResult builds an OnFunc that always returns the given outcome at the
-// given checkID, for exercising evaluateChecks' aggregation with injected
-// outcomes.
-func fixedResult(checkID string, outcome verdict.Outcome) OnFunc {
-	return func(_ Input) (verdict.Result, error) {
-		return newResult(checkID, outcome)
+// stringVals converts a plain path -> string map into Input.Vals' real
+// type, map[string]field.Value, wrapping every entry as a
+// field.NewStringValue. Most of this package's tests only ever need a
+// sibling to resolve to a string (a currency code, a unit, a sign_when
+// comparand), so this is the common case's shorthand; tests exercising
+// MU-06's number/bool/null/non-comparable comparable-shape rules build
+// their Vals map directly instead.
+func stringVals(m map[string]string) map[string]field.Value {
+	out := make(map[string]field.Value, len(m))
+	for k, v := range m {
+		out[k] = field.NewStringValue(v)
 	}
+	return out
+}
+
+// fixedResult builds an OnFunc that always returns the given outcome at the
+// given checkID, applicable == true, for exercising evaluateChecks'
+// aggregation with injected outcomes.
+func fixedResult(checkID string, outcome verdict.Outcome) OnFunc {
+	return func(_ Input) (verdict.Result, bool, error) {
+		res, err := newResult(checkID, outcome)
+		return res, true, err
+	}
+}
+
+// funcPointer returns f's entry address, for comparing two OnFunc values by
+// identity (Go func values are not otherwise comparable). Used only by
+// TestChecksFor_DispatchTable below.
+func funcPointer(f OnFunc) uintptr {
+	return reflect.ValueOf(f).Pointer()
 }
 
 func TestChecksFor_DispatchTable(t *testing.T) {
 	cases := []struct {
 		name string
 		kind field.Kind
-		want []string
+		want []OnFunc
 		ok   bool
 	}{
-		{"money", field.KindMoney, []string{"MU-01", "MU-02", "MU-03", "MU-06", "MU-07", "MU-14"}, true},
-		{"decimal", field.KindDecimal, []string{"MU-02"}, true},
-		{"percentage", field.KindPercentage, []string{"MU-13"}, true},
-		{"quantity", field.KindQuantity, []string{"MU-07"}, true},
+		{"money", field.KindMoney, []OnFunc{checkMU01, checkMU02, checkMU03, checkMU06, checkMU07, checkMU14}, true},
+		{"decimal", field.KindDecimal, []OnFunc{checkMU02, checkMU06, checkMU07}, true},
+		{"percentage", field.KindPercentage, []OnFunc{checkMU07, checkMU13}, true},
+		{"quantity", field.KindQuantity, []OnFunc{checkMU04, checkMU05, checkMU07, checkMU15}, true},
 		{"unspecified", field.KindUnspecified, nil, false},
 		{"timestamp", field.KindTimestamp, nil, false},
 		{"identifier", field.KindIdentifier, nil, false},
@@ -64,6 +88,13 @@ func TestChecksFor_DispatchTable(t *testing.T) {
 	// would only be caught if every case actually checks ok against
 	// len(checks), not just against a hand-written expectation -- so this
 	// loop asserts the derivation itself, not just the table's own values.
+	//
+	// This test compares checksFor's returned []OnFunc against the exact
+	// function values expected, by entry-point pointer (funcPointer),
+	// rather than invoking each with a zero Input and reading its result:
+	// invoking is no longer a safe way to identify a check now that
+	// "not applicable" (a zero, unread Result) is a real outcome a check
+	// can produce for a zero Input -- see OnFunc's own doc comment.
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			checks, ok := checksFor(tc.kind)
@@ -73,22 +104,12 @@ func TestChecksFor_DispatchTable(t *testing.T) {
 			if ok != (len(checks) > 0) {
 				t.Fatalf("checksFor(%v): ok = %v but len(checks) = %d -- ok must equal len(checks) > 0", tc.kind, ok, len(checks))
 			}
-			if !ok {
-				return
-			}
 			if len(checks) != len(tc.want) {
 				t.Fatalf("checksFor(%v) = %d checks, want %d", tc.kind, len(checks), len(tc.want))
 			}
 			for i, check := range checks {
-				res, err := check(Input{})
-				if err != nil {
-					t.Fatalf("check %d unexpected error: %v", i, err)
-				}
-				if res.CheckID() != tc.want[i] {
-					t.Errorf("check %d CheckID() = %q, want %q", i, res.CheckID(), tc.want[i])
-				}
-				if res.Outcome() != verdict.OutcomeIndeterminate {
-					t.Errorf("check %d Outcome() = %v, want INDETERMINATE", i, res.Outcome())
+				if funcPointer(check) != funcPointer(tc.want[i]) {
+					t.Errorf("checksFor(%v)[%d] is not the expected check function", tc.kind, i)
 				}
 			}
 		})
@@ -96,15 +117,24 @@ func TestChecksFor_DispatchTable(t *testing.T) {
 }
 
 func TestEvaluate_DispatchPerKind(t *testing.T) {
-	// Every case below declares its kind but nothing else, so every check
-	// the kind carries is unsatisfied and returns INDETERMINATE -- except
-	// MU-02 (precision.go), whose only requirement is the field's kind
-	// (money or decimal) being one it applies to at all: with Value's zero
-	// value (exact 0) and Provenance's zero value (FromString), MU-02
-	// evaluates for real and PASSes, since decimal.PrecisionLoss never
-	// fails a FromString value. Evaluate (§2.4: no short-circuiting) must
-	// return every applicable check's result, in ascending check-ID order,
-	// not just the first.
+	// Every case below declares its kind but nothing else. Every check
+	// gated on a declared attribute (SPEC-MU §2.5.1/§2.5.2: MU-03's
+	// target_currency_field, MU-05's unit_required, MU-07's min/max, MU-15's
+	// canonical_unit) is not applicable to a bare declaration and so
+	// contributes no entry at all. Every check with no gate, or whose gate
+	// is itself undecidable without a declared attribute (MU-14's
+	// scale: major_units), is applicable and returns INDETERMINATE for
+	// want of a required input -- except MU-02 (precision.go), whose only
+	// requirement is the field's kind (money or decimal) being one it
+	// applies to at all: with Value's zero value (exact 0) and Provenance's
+	// zero value (FromString), MU-02 evaluates for real and PASSes, since
+	// decimal.PrecisionLoss never fails a FromString value. This is also
+	// the regression case the applicability fix exists for: an ordinary,
+	// minimally-declared money field produces no MU-03 or MU-07 entry at
+	// all, rather than a spurious INDETERMINATE that ModeStrict would deny
+	// on (see TestOrdinaryMoneyRuleset_NotDenyUnderStrict below). Evaluate
+	// (§2.6: no short-circuiting) must return every applicable check's
+	// result, in ascending check-ID order, not just the first.
 	cases := []struct {
 		name         string
 		decl         field.Declaration
@@ -114,17 +144,17 @@ func TestEvaluate_DispatchPerKind(t *testing.T) {
 		{
 			"money",
 			field.NewMoneyDeclaration(),
-			[]string{"MU-01", "MU-02", "MU-03", "MU-06", "MU-07", "MU-14"},
+			[]string{"MU-01", "MU-02", "MU-06", "MU-14"},
 			[]verdict.Outcome{
-				verdict.OutcomeIndeterminate, verdict.OutcomePass, verdict.OutcomeIndeterminate,
-				verdict.OutcomeIndeterminate, verdict.OutcomeIndeterminate, verdict.OutcomeIndeterminate,
+				verdict.OutcomeIndeterminate, verdict.OutcomePass,
+				verdict.OutcomeIndeterminate, verdict.OutcomeIndeterminate,
 			},
 		},
 		{
 			"decimal",
 			field.NewDecimalDeclaration(),
-			[]string{"MU-02"},
-			[]verdict.Outcome{verdict.OutcomePass},
+			[]string{"MU-02", "MU-06"},
+			[]verdict.Outcome{verdict.OutcomePass, verdict.OutcomeIndeterminate},
 		},
 		{
 			"percentage",
@@ -135,7 +165,7 @@ func TestEvaluate_DispatchPerKind(t *testing.T) {
 		{
 			"quantity",
 			field.NewQuantityDeclaration(),
-			[]string{"MU-07"},
+			[]string{"MU-04"},
 			[]verdict.Outcome{verdict.OutcomeIndeterminate},
 		},
 	}
@@ -161,6 +191,203 @@ func TestEvaluate_DispatchPerKind(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// TestOrdinaryRuleset_NotDenyUnderStrict is the regression this task exists
+// for, covering all four kinds this package carries gated checks for. Each
+// case declares a field with everything a real check actually requires --
+// scale/currency/sign for money, sign for decimal, domain for percentage,
+// dimension and a resolvable unit for quantity -- but deliberately nothing
+// beyond that: no target_currency_field or bounds on money, no bounds on
+// decimal or percentage, no unit_required or canonical_unit or bounds on
+// quantity. None of that must produce a spurious block-severity
+// INDETERMINATE that ModeStrict then denies on. Before the applicability
+// fix, every one of the listed absentIDs reported INDETERMINATE for a gate
+// the ruleset never asked to have evaluated at all, and
+// verdict.ComputeAggregate turns any block-severity INDETERMINATE into
+// VerdictDeny under ModeStrict -- invariant 1 (INDETERMINATE never
+// collapses to PASS) must not be read backwards into "manufacture a DENY
+// out of a check that was never applicable". Money and decimal declare
+// sign: any and percentage declares a domain so that MU-06/MU-13 -- genuine
+// required-input checks, not gates -- resolve to a real PASS rather than
+// their own honest INDETERMINATE, which would deny under ModeStrict for a
+// completely different, correct reason these cases are not about.
+func TestOrdinaryRuleset_NotDenyUnderStrict(t *testing.T) {
+	moneyDecl := field.NewMoneyDeclaration()
+	moneyDecl, err := moneyDecl.WithScale(field.ScaleMajorUnits)
+	if err != nil {
+		t.Fatalf("WithScale unexpected error: %v", err)
+	}
+	moneyDecl, err = moneyDecl.WithCurrencyField("arguments.currency")
+	if err != nil {
+		t.Fatalf("WithCurrencyField unexpected error: %v", err)
+	}
+	moneyDecl, err = moneyDecl.WithSign(field.SignAny)
+	if err != nil {
+		t.Fatalf("WithSign unexpected error: %v", err)
+	}
+
+	decimalDecl, err := field.NewDecimalDeclaration().WithSign(field.SignAny)
+	if err != nil {
+		t.Fatalf("WithSign unexpected error: %v", err)
+	}
+
+	percentageDecl, err := field.NewPercentageDeclaration().WithDomain(field.DomainUnitInterval)
+	if err != nil {
+		t.Fatalf("WithDomain unexpected error: %v", err)
+	}
+
+	quantityDecl := mustDimension(t, field.NewQuantityDeclaration(), "mass")
+
+	cases := []struct {
+		name      string
+		in        Input
+		absentIDs []string // gated checks that must not appear at all
+	}{
+		{
+			name: "money",
+			in: Input{
+				Field:    "arguments.amount",
+				Value:    mustParse(t, "49.99"),
+				Registry: mustRegistry(t, moneyDecl),
+				Vals:     stringVals(map[string]string{"arguments.currency": "USD"}),
+				Tables:   Tables{ISO4217: tables.NewISO4217Table()},
+			},
+			// MU-03: no target_currency_field. MU-07: no min/max.
+			absentIDs: []string{"MU-03", "MU-07"},
+		},
+		{
+			name: "decimal",
+			in: Input{
+				Field:    "arguments.amount",
+				Value:    mustParse(t, "5"),
+				Registry: mustRegistry(t, decimalDecl),
+			},
+			// MU-07: no min/max.
+			absentIDs: []string{"MU-07"},
+		},
+		{
+			name: "percentage",
+			in: Input{
+				Field:    "arguments.amount",
+				Value:    mustParse(t, "0.5"),
+				Registry: mustRegistry(t, percentageDecl),
+			},
+			// MU-07: no min/max.
+			absentIDs: []string{"MU-07"},
+		},
+		{
+			name: "quantity",
+			in: Input{
+				Field:           "arguments.amount",
+				Value:           mustParse(t, "12"),
+				EmbeddedUnit:    "kg",
+				HasEmbeddedUnit: true,
+				Registry:        mustRegistry(t, quantityDecl),
+				Tables:          unitTables(),
+			},
+			// MU-05: unit_required not declared. MU-07: no min/max.
+			// MU-15: no canonical_unit.
+			absentIDs: []string{"MU-05", "MU-07", "MU-15"},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			results, err := Evaluate(tc.in)
+			if err != nil {
+				t.Fatalf("Evaluate unexpected error: %v", err)
+			}
+			absent := make(map[string]bool, len(tc.absentIDs))
+			for _, id := range tc.absentIDs {
+				absent[id] = true
+			}
+			for _, res := range results {
+				if absent[res.CheckID()] {
+					t.Errorf("Evaluate returned a %s result for a field that never declared its gate: %v", res.CheckID(), res.Outcome())
+				}
+			}
+			agg, err := verdict.ComputeAggregate(results, verdict.ModeStrict)
+			if err != nil {
+				t.Fatalf("ComputeAggregate unexpected error: %v", err)
+			}
+			if agg.Verdict == verdict.VerdictDeny {
+				t.Errorf("ComputeAggregate under ModeStrict = VerdictDeny (reason %v), want anything else, for results %v", agg.Reason, results)
+			}
+		})
+	}
+}
+
+// TestEvaluate_Vector_16 wires SPEC-MU §8.3 vector 16: a money field whose
+// value did not coerce ("1,234", a string resolution refuses) must report
+// INDETERMINATE from every applicable value-dependent check (§2.6.3) --
+// MU-01, MU-02, MU-06, MU-07, MU-14 for this declaration -- while MU-03,
+// which is not value-dependent (§2.6.3's table) and never reads the
+// field's own value, evaluates normally and is unaffected by the coercion
+// failure. That contrast is the point of the vector: the coercion gate is
+// scoped to value-dependent checks, not to the field as a whole.
+func TestEvaluate_Vector_16(t *testing.T) {
+	decl := field.NewMoneyDeclaration()
+	decl, err := decl.WithScale(field.ScaleMajorUnits)
+	if err != nil {
+		t.Fatalf("WithScale unexpected error: %v", err)
+	}
+	decl, err = decl.WithCurrencyField("arguments.currency")
+	if err != nil {
+		t.Fatalf("WithCurrencyField unexpected error: %v", err)
+	}
+	decl, err = decl.WithTargetCurrencyField("arguments.target_currency")
+	if err != nil {
+		t.Fatalf("WithTargetCurrencyField unexpected error: %v", err)
+	}
+	decl, err = decl.WithSign(field.SignPositive)
+	if err != nil {
+		t.Fatalf("WithSign unexpected error: %v", err)
+	}
+	decl = decl.WithMin(mustParse(t, "0"))
+
+	in := Input{
+		Field:               "arguments.amount",
+		ValueCoercionFailed: true,
+		Registry:            mustRegistry(t, decl),
+		Vals: stringVals(map[string]string{
+			"arguments.currency":        "USD",
+			"arguments.target_currency": "USD",
+		}),
+		Tables: Tables{ISO4217: tables.NewISO4217Table()},
+	}
+	results, err := Evaluate(in)
+	if err != nil {
+		t.Fatalf("Evaluate unexpected error: %v", err)
+	}
+
+	wantOutcome := map[string]verdict.Outcome{
+		"MU-01": verdict.OutcomeIndeterminate,
+		"MU-02": verdict.OutcomeIndeterminate,
+		"MU-03": verdict.OutcomePass, // not value-dependent: unaffected
+		"MU-06": verdict.OutcomeIndeterminate,
+		"MU-07": verdict.OutcomeIndeterminate,
+		"MU-14": verdict.OutcomeIndeterminate,
+	}
+	if len(results) != len(wantOutcome) {
+		t.Fatalf("Evaluate returned %d results, want %d (%v)", len(results), len(wantOutcome), results)
+	}
+	seen := make(map[string]bool, len(results))
+	for _, res := range results {
+		seen[res.CheckID()] = true
+		want, ok := wantOutcome[res.CheckID()]
+		if !ok {
+			t.Errorf("Evaluate returned unexpected check %s", res.CheckID())
+			continue
+		}
+		if res.Outcome() != want {
+			t.Errorf("%s Outcome() = %v, want %v", res.CheckID(), res.Outcome(), want)
+		}
+	}
+	for id := range wantOutcome {
+		if !seen[id] {
+			t.Errorf("Evaluate missing expected check %s", id)
+		}
 	}
 }
 
@@ -232,6 +459,20 @@ func TestEvaluateChecks_ReturnsEveryResultInOrder(t *testing.T) {
 			wantIDs:      []string{"MU-01", "MU-14"},
 			wantOutcomes: []verdict.Outcome{verdict.OutcomePass, verdict.OutcomePass},
 		},
+		{
+			// SPEC-MU §2.5: a not-applicable check contributes no entry at
+			// all -- neither an omitted-but-counted slot nor a zero Result
+			// -- so evaluateChecks must skip it entirely rather than
+			// reporting it as some fourth outcome.
+			name: "not applicable check contributes no entry",
+			checks: []OnFunc{
+				fixedResult("MU-01", verdict.OutcomePass),
+				func(Input) (verdict.Result, bool, error) { return notApplicable() },
+				fixedResult("MU-14", verdict.OutcomeFail),
+			},
+			wantIDs:      []string{"MU-01", "MU-14"},
+			wantOutcomes: []verdict.Outcome{verdict.OutcomePass, verdict.OutcomeFail},
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -255,8 +496,8 @@ func TestEvaluateChecks_ReturnsEveryResultInOrder(t *testing.T) {
 }
 
 func TestEvaluateChecks_ErrorPropagation(t *testing.T) {
-	boom := func(_ Input) (verdict.Result, error) {
-		return verdict.Result{}, errors.New("boom")
+	boom := func(_ Input) (verdict.Result, bool, error) {
+		return verdict.Result{}, true, errors.New("boom")
 	}
 	_, err := evaluateChecks(Input{}, []OnFunc{boom})
 	if err == nil {
@@ -433,9 +674,12 @@ func TestBounded(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			res, err := bounded(tc.decl, mustParse(t, tc.value), mustParse(t, orZero(tc.min)), tc.hasMin, mustParse(t, orZero(tc.max)), tc.hasMax)
+			res, applicable, err := bounded(tc.decl, mustParse(t, tc.value), mustParse(t, orZero(tc.min)), tc.hasMin, mustParse(t, orZero(tc.max)), tc.hasMax)
 			if err != nil {
 				t.Fatalf("bounded unexpected error: %v", err)
+			}
+			if !applicable {
+				t.Fatal("bounded applicable = false, want true")
 			}
 			if res.CheckID() != "MU-07" {
 				t.Errorf("bounded CheckID() = %q, want MU-07", res.CheckID())
