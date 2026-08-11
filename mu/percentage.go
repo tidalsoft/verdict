@@ -27,10 +27,16 @@ import (
 // violates, if any, is one about sign -- MU-06's territory, not this
 // check's (vectors 75, 76, 94).
 //
-// Branch matrix:
+// Applicability (SPEC-MU §2.5.1: applies to percentage, no further gate):
 //   - no declaration for the field, or a declaration whose kind is not
-//     percentage → INDETERMINATE (the "Requires kind: percentage" clause).
-//   - percentage declaration with no domain declared → INDETERMINATE.
+//     percentage → not applicable.
+//
+// Branch matrix, once applicable:
+//   - the value is not coercible (§2.6.3; MU-13 is value-dependent) →
+//     INDETERMINATE, reason value_not_coercible.
+//   - percentage declaration with no domain declared → INDETERMINATE
+//     (§2.5.2: a percentage has a domain whether or not the ruleset says
+//     which -- a required input, not a gate).
 //   - domain: unit_interval and abs(value) > 1 → FAIL at the class
 //     default (block) (vector 75).
 //   - domain: unit_interval and abs(value) ≤ 1 → PASS (vector 76).
@@ -46,13 +52,16 @@ import (
 //     without a separate branch.
 //   - domain: hundred and abs(value) > 1 → PASS, with no upper bound of
 //     any kind (vector 77).
-func checkMU13(in Input) (verdict.Result, error) {
+func checkMU13(in Input) (verdict.Result, bool, error) {
 	decl, ok := in.Registry.Lookup(in.Field)
 	if !ok {
-		return indeterminateResult("MU-13")
+		return notApplicable()
 	}
 	pctDecl, ok := decl.(field.PercentageDeclaration)
 	if !ok {
+		return notApplicable()
+	}
+	if in.ValueCoercionFailed {
 		return indeterminateResult("MU-13")
 	}
 	domain, hasDomain := pctDecl.Domain()

@@ -62,6 +62,55 @@ func TestQuantityDeclaration_WithDimension_Empty(t *testing.T) {
 	}
 }
 
+// TestQuantityDeclaration_WithDimension_Unrecognised is the regression for
+// the defect SPEC-MU §2.2 forbids: an unrecognised dimension string (not
+// merely empty) must be rejected at construction, the same way an invalid
+// Scale/Sign/Domain already is, rather than reaching MU-04 at evaluation
+// and manufacturing a FAIL against a value that contradicts nothing.
+// "weight" is deliberately plausible-sounding text, not an obvious typo,
+// and "Mass" pins that matching is exact (no case-folding) against
+// tables.ParseDimension's own closed set.
+func TestQuantityDeclaration_WithDimension_Unrecognised(t *testing.T) {
+	cases := []string{"weight", "Mass", "digital_storage", "currency_per_unit", "kg"}
+	for _, dim := range cases {
+		t.Run(dim, func(t *testing.T) {
+			if _, err := NewQuantityDeclaration().WithDimension(dim); err == nil {
+				t.Fatalf("WithDimension(%q): expected error, got nil", dim)
+			}
+		})
+	}
+}
+
+// TestQuantityDeclaration_WithDimension_SpecSpelling pins SPEC-MU §4's own
+// "Supported dimensions" spelling for the two tokens that differ from this
+// package's internal one (tables.Dimension.String()): "digital storage" (a
+// space) and "currency-per-unit" (a hyphen), where String() renders
+// "digital_storage" and "currency_per_unit". A ruleset spelling them the
+// spec's way must be accepted, and Dimension() reports back the internal
+// spelling MU-04 compares against (mu.checkMU04), not the string the
+// ruleset supplied -- see WithDimension's own doc comment.
+func TestQuantityDeclaration_WithDimension_SpecSpelling(t *testing.T) {
+	cases := []struct {
+		specSpelling string
+		wantStored   string
+	}{
+		{"digital storage", "digital_storage"},
+		{"currency-per-unit", "currency_per_unit"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.specSpelling, func(t *testing.T) {
+			d, err := NewQuantityDeclaration().WithDimension(tc.specSpelling)
+			if err != nil {
+				t.Fatalf("WithDimension(%q): unexpected error: %v", tc.specSpelling, err)
+			}
+			got, ok := d.Dimension()
+			if !ok || got != tc.wantStored {
+				t.Fatalf("Dimension() = (%q, %v), want (%q, true)", got, ok, tc.wantStored)
+			}
+		})
+	}
+}
+
 func TestQuantityDeclaration_WithUnitField(t *testing.T) {
 	d, err := NewQuantityDeclaration().WithUnitField("arguments.weight_unit")
 	if err != nil {

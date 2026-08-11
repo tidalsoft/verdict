@@ -9,12 +9,18 @@ import (
 
 func wantMU15(t *testing.T, in Input, wantOutcome verdict.Outcome) {
 	t.Helper()
-	res, err := checkMU15(in)
+	res, applicable, err := checkMU15(in)
 	if err != nil {
 		t.Fatalf("checkMU15 unexpected error: %v", err)
 	}
+	if !applicable {
+		t.Fatal("checkMU15 applicable = false, want true")
+	}
 	if res.CheckID() != "MU-15" {
 		t.Errorf("CheckID() = %q, want MU-15", res.CheckID())
+	}
+	if res.Class() != verdict.ClassD {
+		t.Errorf("Class() = %v, want ClassD", res.Class())
 	}
 	if res.Outcome() != wantOutcome {
 		t.Errorf("Outcome() = %v, want %v", res.Outcome(), wantOutcome)
@@ -23,6 +29,22 @@ func wantMU15(t *testing.T, in Input, wantOutcome verdict.Outcome) {
 	// see checkMU15's own doc comment.
 	if res.Severity() != verdict.SeverityWarn {
 		t.Errorf("Severity() = %v, want SeverityWarn", res.Severity())
+	}
+}
+
+// wantMU15NotApplicable asserts checkMU15 reports applicable == false for
+// in: the field's kind is outside MU-15's Applies to set, or the field
+// never declared canonical_unit -- MU-15's own §2.5.1 gate. MU-15's warn
+// default severity governs the Result it builds once applicable; it has no
+// bearing on whether one is built at all (see checkMU15's own doc comment).
+func wantMU15NotApplicable(t *testing.T, in Input) {
+	t.Helper()
+	_, applicable, err := checkMU15(in)
+	if err != nil {
+		t.Fatalf("checkMU15 unexpected error: %v", err)
+	}
+	if applicable {
+		t.Error("checkMU15 applicable = true, want false")
 	}
 }
 
@@ -106,20 +128,22 @@ func TestCheckMU15_Vector_120(t *testing.T) {
 	wantMU15(t, in, verdict.OutcomeIndeterminate)
 }
 
-func TestCheckMU15_NoDeclaration_Indeterminate(t *testing.T) {
+func TestCheckMU15_NoDeclaration_NotApplicable(t *testing.T) {
 	in := Input{Field: "arguments.amount", Registry: field.Registry{}}
-	wantMU15(t, in, verdict.OutcomeIndeterminate)
+	wantMU15NotApplicable(t, in)
 }
 
-func TestCheckMU15_WrongKind_Indeterminate(t *testing.T) {
+func TestCheckMU15_WrongKind_NotApplicable(t *testing.T) {
 	in := Input{
 		Field:    "arguments.amount",
 		Registry: mustRegistry(t, field.NewMoneyDeclaration()),
 	}
-	wantMU15(t, in, verdict.OutcomeIndeterminate)
+	wantMU15NotApplicable(t, in)
 }
 
-func TestCheckMU15_NoCanonicalUnit_Indeterminate(t *testing.T) {
+func TestCheckMU15_NoCanonicalUnit_NotApplicable(t *testing.T) {
+	// SPEC-MU §2.5.1: canonical_unit is MU-15's gate -- its absence is not
+	// applicable, not a required-input INDETERMINATE.
 	decl := mustDimension(t, field.NewQuantityDeclaration(), "mass") // no canonical_unit
 	in := Input{
 		Field:           "arguments.amount",
@@ -129,7 +153,7 @@ func TestCheckMU15_NoCanonicalUnit_Indeterminate(t *testing.T) {
 		Registry:        mustRegistry(t, decl),
 		Tables:          unitTables(),
 	}
-	wantMU15(t, in, verdict.OutcomeIndeterminate)
+	wantMU15NotApplicable(t, in)
 }
 
 func TestCheckMU15_CanonicalUnitNotInRegistry_Indeterminate(t *testing.T) {
@@ -175,13 +199,47 @@ func TestCheckMU15_DefaultTolerance_Pass(t *testing.T) {
 
 func TestCheckMU15_CanonicalUnitItself_RoundTripsExactly(t *testing.T) {
 	// A value already in its canonical unit round-trips through the
-	// identity transform exactly, even at tolerance "0".
+	// identity transform exactly, even at tolerance "0". kg is also
+	// mass's registry canonical, so this alone does not distinguish a
+	// correct round trip through the *declared* canonical_unit from one
+	// that (incorrectly) always routes through the registry canonical --
+	// see TestCheckMU15_CanonicalUnitNotRegistryCanonical_IdentityRoundTrip
+	// below for the case that does.
 	decl := mustCanonicalUnit(t, mustDimension(t, field.NewQuantityDeclaration(), "mass"), "kg")
 	decl = decl.WithTolerance(mustParse(t, "0"))
 	in := Input{
 		Field:           "arguments.amount",
 		Value:           mustParse(t, "12"),
 		EmbeddedUnit:    "kg",
+		HasEmbeddedUnit: true,
+		Registry:        mustRegistry(t, decl),
+		Tables:          unitTables(),
+	}
+	wantMU15(t, in, verdict.OutcomePass)
+}
+
+// TestCheckMU15_CanonicalUnitNotRegistryCanonical_IdentityRoundTrip is a
+// regression test: canonical_unit is declared as lb -- not mass's registry
+// canonical, kg -- and the value already arrives in lb. Because the
+// declared canonical_unit and the value's own unit are literally the same
+// unit, no conversion is actually occurring, and the round trip must be
+// exact -- PASS even at tolerance "0". lb's own registry factors (its
+// kg-per-lb scale and lb-per-kg scale) are independently truncated
+// decimal approximations that are not exact reciprocals of each other
+// (see tables.Unit's doc comment), so a defect that routes "lb to lb"
+// through the registry's kg canonical anyway -- lb.ToCanonical then
+// lb.FromCanonical, applying that imprecision where no conversion was
+// needed -- wrongly FAILs.
+func TestCheckMU15_CanonicalUnitNotRegistryCanonical_IdentityRoundTrip(t *testing.T) {
+	decl, err := mustDimension(t, field.NewQuantityDeclaration(), "mass").WithCanonicalUnit("lb")
+	if err != nil {
+		t.Fatalf("WithCanonicalUnit unexpected error: %v", err)
+	}
+	decl = decl.WithTolerance(mustParse(t, "0"))
+	in := Input{
+		Field:           "arguments.amount",
+		Value:           mustParse(t, "12"),
+		EmbeddedUnit:    "lb",
 		HasEmbeddedUnit: true,
 		Registry:        mustRegistry(t, decl),
 		Tables:          unitTables(),
@@ -248,6 +306,27 @@ func TestCheckMU15_ToleranceComparisonSubOverflow_Indeterminate(t *testing.T) {
 		HasEmbeddedUnit: true,
 		Registry:        mustRegistry(t, decl),
 		Tables:          unitTables(),
+	}
+	wantMU15(t, in, verdict.OutcomeIndeterminate)
+}
+
+func TestCheckMU15_ValueNotCoercible_Indeterminate(t *testing.T) {
+	// SPEC-MU §2.6.3: MU-15 is value-dependent, so once its own gate
+	// (canonical_unit declared) is satisfied and the canonical unit
+	// resolves, a value the coercion gate could not read is INDETERMINATE
+	// before the round trip ever runs -- Value must not be read once
+	// ValueCoercionFailed is true.
+	decl, err := mustDimension(t, field.NewQuantityDeclaration(), "mass").WithCanonicalUnit("kg")
+	if err != nil {
+		t.Fatalf("WithCanonicalUnit unexpected error: %v", err)
+	}
+	in := Input{
+		Field:               "arguments.amount",
+		ValueCoercionFailed: true,
+		EmbeddedUnit:        "lb",
+		HasEmbeddedUnit:     true,
+		Registry:            mustRegistry(t, decl),
+		Tables:              unitTables(),
 	}
 	wantMU15(t, in, verdict.OutcomeIndeterminate)
 }

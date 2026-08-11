@@ -155,6 +155,18 @@ func Evaluate(in Input) ([]verdict.Result, error) {
 	return evaluateChecks(in, checks)
 }
 
+// notApplicable is the (verdict.Result, bool, error) triple every check
+// returns the moment SPEC-MU §2.5's applicability test fails: the field's
+// kind is outside the check's *Applies to* set, or a §2.5.1 "Applicable
+// only when" gate reads false against a coherent, complete declaration
+// (§2.5.2). See OnFunc's own doc comment for the full test this implements
+// and why the zero Result it returns must never be read -- evaluateChecks
+// is the one place that omission is enforced, so every check need only
+// return this value and stop.
+func notApplicable() (verdict.Result, bool, error) {
+	return verdict.Result{}, false, nil
+}
+
 // checksFor returns the checks a field of the given kind carries, in
 // ascending check-ID order — SPEC-MU §2.6: "every other applicable check,
 // in ascending ID order" — and whether any checks apply at
@@ -235,9 +247,12 @@ func evaluateChecks(in Input, checks []OnFunc) ([]verdict.Result, error) {
 // declaration found is a MoneyDeclaration, collapsing both failure modes
 // -- no declaration at all, and a declaration for a different kind --
 // into the single comma-ok signal every money-only check (MU-01, MU-03,
-// MU-14, and MU-06/MU-07's money branch) starts with and treats
-// identically: INDETERMINATE. There is nothing money-specific to say
-// about a field that isn't declared as money in the first place.
+// MU-14) starts with and treats identically: not applicable (SPEC-MU
+// §2.5.1 step 1 -- the field's kind is outside the check's Applies to set
+// -- see notApplicable). There is nothing money-specific to say about a
+// field that isn't declared as money in the first place, and "not
+// applicable" is the state that says so without asserting a blind spot
+// the ruleset never asked to have covered.
 //
 // MU-06 and MU-07 also apply to other kinds (SPEC-MU §2.5.1's trigger
 // matrix: MU-06 to money and decimal; MU-07 to money, decimal,
@@ -372,8 +387,18 @@ func newResult(checkID string, outcome verdict.Outcome) (verdict.Result, error) 
 // its entirety, whose own declared default severity is warn, not block —
 // every one of its Results, including PASS and INDETERMINATE, is built
 // through this function rather than newResult.
-func warnResult(checkID string, outcome verdict.Outcome) (verdict.Result, error) {
-	return verdict.NewResult(checkID, verdict.ClassD, verdict.SeverityWarn, outcome)
+// warnResult's, indeterminateResult's, failResult's, and passResult's bool
+// return is always true: every one of them builds the Result for a check
+// that SPEC-MU §2.5 has already determined is applicable (see OnFunc's doc
+// comment) -- notApplicable is the only function in this package that ever
+// returns false. They carry the bool at all, rather than leaving each call
+// site to write `res, true, err`, so that every check function can return
+// their result directly (`return failResult("MU-07")`) with a shape that
+// already matches OnFunc, the same way mu.go's other constructors already
+// did before this package needed a third return value.
+func warnResult(checkID string, outcome verdict.Outcome) (verdict.Result, bool, error) {
+	res, err := verdict.NewResult(checkID, verdict.ClassD, verdict.SeverityWarn, outcome)
+	return res, true, err
 }
 
 // mustResult builds a verdict.Result for a checkID and Outcome the caller
@@ -451,21 +476,29 @@ func mustParseDecimal(s string) decimal.Decimal {
 }
 
 // indeterminateResult builds the INDETERMINATE result a check returns when
-// a required declaration, schema, or piece of state was absent.
-func indeterminateResult(checkID string) (verdict.Result, error) {
-	return newResult(checkID, verdict.OutcomeIndeterminate)
+// it is applicable (SPEC-MU §2.5) but a required declaration, schema, table
+// entry, or piece of state -- or the value itself, per §2.6.3's coercion
+// gate -- was absent or unusable. See warnResult's doc comment for why its
+// bool return is always true.
+func indeterminateResult(checkID string) (verdict.Result, bool, error) {
+	res, err := newResult(checkID, verdict.OutcomeIndeterminate)
+	return res, true, err
 }
 
 // failResult builds the block-severity FAIL result a check returns when it
-// finds a violation.
-func failResult(checkID string) (verdict.Result, error) {
-	return newResult(checkID, verdict.OutcomeFail)
+// finds a violation. See warnResult's doc comment for why its bool return
+// is always true.
+func failResult(checkID string) (verdict.Result, bool, error) {
+	res, err := newResult(checkID, verdict.OutcomeFail)
+	return res, true, err
 }
 
 // passResult builds the PASS result a check returns when it finds no
-// violation.
-func passResult(checkID string) (verdict.Result, error) {
-	return newResult(checkID, verdict.OutcomePass)
+// violation. See warnResult's doc comment for why its bool return is
+// always true.
+func passResult(checkID string) (verdict.Result, bool, error) {
+	res, err := newResult(checkID, verdict.OutcomePass)
+	return res, true, err
 }
 
 // checkMU01, checkMU02, checkMU03, checkMU04, checkMU05, checkMU06,

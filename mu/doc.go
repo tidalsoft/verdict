@@ -10,26 +10,15 @@
 // Result — evaluation does not short-circuit on a FAIL, per §2.6, so all
 // applicable checks always run and all their results are always reported.
 //
-// # A known gap: "not applicable" is not yet distinct from INDETERMINATE
-//
-// SPEC-MU §2.5 defines "not applicable" as a state distinct from every
-// evaluated outcome (PASS/FAIL/INDETERMINATE): a check whose *Applies to*
-// gate the field's declaration never satisfies (e.g. MU-05 on a field that
-// never declared unit_required: true) produces no entry in any response
-// array at all, never an INDETERMINATE one -- "a blind-spot report nobody
-// reads is worse than no report at all, because it looks like diligence."
-// This package does not yet implement that distinction: Evaluate's
-// dispatch is a static, kind-keyed list (checksFor), and every check in
-// that list always produces exactly one Result, so a gate the ruleset
-// left unsatisfied is reported as INDETERMINATE, identically to a gate
-// that was satisfied but could not resolve. Every check in this package
-// follows that same, already-established convention (task 1-4 set it for
-// MU-03's target_currency_field gate; this task's MU-05, MU-07, and MU-15
-// additions follow it rather than diverge from already-shipped behaviour
-// mid-package). Building the distinction properly means changing what
-// Evaluate returns for every check in this package at once, not one
-// check's fix -- recorded as a candidate Unresolved Issue rather than
-// attempted piecemeal here.
+// SPEC-MU §2.5's "not applicable" state -- a check whose *Applies to* gate
+// the field's declaration never satisfies, which contributes no entry to
+// the response at all, never an INDETERMINATE one -- is distinct from
+// every evaluated outcome and is implemented throughout this package; see
+// OnFunc's doc comment for the exact test and Evaluate's for what a caller
+// sees as a result. §2.6.3's coercion gate (a value-dependent check facing
+// a value it could not read returns INDETERMINATE rather than evaluating
+// against a number nobody can pin down) is implemented the same way, via
+// Input.ValueCoercionFailed.
 //
 // # Purity invariant
 //
@@ -53,11 +42,11 @@
 // build against: Input, Tables, OnFunc, and Evaluate, whose signature is
 // func(Input) ([]verdict.Result, error) — one Result per applicable check,
 // in dispatch order. Each individual check is a
-// func(Input) (verdict.Result, error) registered in the dispatch table
-// keyed by field.Kind, implemented in its own file alongside that file's
-// tests: MU-01 (scale.go), MU-02 (precision.go), MU-03 (currency.go),
-// MU-04 (dimension.go), MU-05 (absent.go), MU-06 (sign.go), MU-07
-// (range.go), MU-13 (percentage.go), MU-14 (exponent.go), and MU-15
+// func(Input) (verdict.Result, bool, error) (OnFunc) registered in the
+// dispatch table keyed by field.Kind, implemented in its own file alongside
+// that file's tests: MU-01 (scale.go), MU-02 (precision.go), MU-03
+// (currency.go), MU-04 (dimension.go), MU-05 (absent.go), MU-06 (sign.go),
+// MU-07 (range.go), MU-13 (percentage.go), MU-14 (exponent.go), and MU-15
 // (conversion.go). resolveQuantityUnit (unit.go) is the shared unit
 // resolution helper MU-04, MU-05, MU-07, and MU-15 all consult.
 package mu

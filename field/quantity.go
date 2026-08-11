@@ -2,19 +2,31 @@ package field
 
 import (
 	"errors"
+	"fmt"
 
 	"github.com/tidalsoft/verdict/decimal"
+	"github.com/tidalsoft/verdict/tables"
 )
 
 // QuantityDeclaration is the field declaration for `kind: quantity`. Its
 // zero value, produced by NewQuantityDeclaration, declares nothing beyond
 // the kind itself.
 //
-// Dimension and CanonicalUnit are plain strings rather than closed enums
-// on purpose: resolving a dimension or unit requires a unit registry this
-// package does not have visibility into and does not provide (see
-// tables.UnitRegistry). This package records what was declared; MU-04/
-// MU-05/MU-07/MU-15 decide whether it resolves to anything.
+// Dimension and CanonicalUnit are both exposed as plain strings, but for
+// two different reasons that no longer coincide. Dimension is validated
+// against tables.Dimension's closed enumeration at construction (see
+// WithDimension) -- SPEC-MU §4's fixed "Supported dimensions" list lives
+// inside this module, so checking membership needs no external registry,
+// exactly like WithScale/WithSign/WithDomain validate their own closed
+// enums elsewhere in this package. It is still typed string rather than
+// tables.Dimension here only to keep this package's declared surface
+// (every accessor's comma-ok string/bool shape) uniform with
+// CanonicalUnit and UnitField. CanonicalUnit remains genuinely
+// unvalidated: whether a unit symbol resolves depends on
+// tables.UnitRegistry's compiled-in data, which is versioned and can grow,
+// and this package has no visibility into it and provides none -- MU-04/
+// MU-05/MU-07/MU-15 (mu package) decide whether a declared CanonicalUnit
+// or a request's own unit resolves to anything.
 //
 // # U-25: Min/Max is MU-07's general bound, not MU-15's overflow check
 //
@@ -65,8 +77,10 @@ func NewQuantityDeclaration() QuantityDeclaration { return QuantityDeclaration{}
 // Kind implements Declaration.
 func (d QuantityDeclaration) Kind() Kind { return KindQuantity }
 
-// Dimension returns the declared physical dimension (e.g. "mass"), if any.
-// MU-04 returns INDETERMINATE when the second return value is false.
+// Dimension returns the declared physical dimension (e.g. "mass"), if any,
+// spelled the way tables.Dimension.String() renders it -- see
+// WithDimension. MU-04 returns INDETERMINATE when the second return value
+// is false.
 func (d QuantityDeclaration) Dimension() (string, bool) { return d.dimension, d.hasDimension }
 
 // UnitField returns the path to the field naming this quantity's unit, if
@@ -107,13 +121,26 @@ func (d QuantityDeclaration) ExclusiveMax() bool { return d.exclusiveMax }
 // declared.
 func (d QuantityDeclaration) Tolerance() (decimal.Decimal, bool) { return d.tolerance, d.hasTolerance }
 
-// WithDimension declares the field's physical dimension. dim must be
-// non-empty.
+// WithDimension declares the field's physical dimension. dim must be one
+// of SPEC-MU §4's "Supported dimensions" tokens (tables.ParseDimension's
+// own doc comment lists them and the two whose spec spelling differs from
+// this package's internal one).
+//
+// This validates at construction rather than leaving an unrecognised
+// dimension to reach MU-04 (unit_dimension_mismatch) at evaluation: SPEC-MU
+// §2.2 defines Class D's false-positive rate as zero by construction --
+// "a FAIL means the input contradicts its own declaration" -- and a field
+// declared dimension: "weight" (not a dimension this document defines)
+// contradicts nothing about a value arriving in kg. §2.4.1 sets the
+// pattern this follows for `kind` itself: "an unrecognised kind is a
+// ruleset error, never a field the engine waves through unchecked."
+// Rejecting the ruleset here is that same rule applied to `dimension`.
 func (d QuantityDeclaration) WithDimension(dim string) (QuantityDeclaration, error) {
-	if dim == "" {
-		return QuantityDeclaration{}, errors.New("field: dimension must not be empty")
+	parsed, ok := tables.ParseDimension(dim)
+	if !ok {
+		return QuantityDeclaration{}, fmt.Errorf("field: invalid dimension %q", dim)
 	}
-	d.dimension = dim
+	d.dimension = parsed.String()
 	d.hasDimension = true
 	return d, nil
 }

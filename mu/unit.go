@@ -1,6 +1,10 @@
 package mu
 
-import "github.com/tidalsoft/verdict/field"
+import (
+	"github.com/tidalsoft/verdict/decimal"
+	"github.com/tidalsoft/verdict/field"
+	"github.com/tidalsoft/verdict/tables"
+)
 
 // quantityUnit is the outcome of resolving a `kind: quantity` field's
 // unit from its two possible sources (SPEC-MU §2.6.1): the value's own
@@ -62,4 +66,53 @@ func resolveQuantityUnit(in Input, decl field.QuantityDeclaration) quantityUnit 
 	default:
 		return quantityUnit{}
 	}
+}
+
+// convertBetweenUnits converts value, expressed in from, to the equivalent
+// value expressed in to -- both already known to be the same dimension
+// (every call site checks that itself, since what counts as an
+// unresolvable dimension mismatch differs by check: MU-07 and MU-15 both
+// treat it as INDETERMINATE, but only after resolving this far). This is
+// the one place either check turns a value's own unit and the field's
+// declared canonical_unit into a single comparable number -- MU-07's bound
+// comparison and MU-15's round trip both go through it, so "how two units
+// convert" is one rule rather than reimplemented per check with a chance
+// to disagree at the edges (mirroring resolveQuantityUnit's own reason for
+// existing as a shared file).
+//
+// When from and to are literally the same unit, this returns value
+// unchanged rather than routing through the registry's fixed
+// per-dimension canonical (kg, m, L, K, ...). That shortcut is not an
+// optimisation; it is required for correctness. Unit.ToCanonical and
+// Unit.FromCanonical are independently stored, not-necessarily-reciprocal
+// decimal approximations (see Unit's own doc comment, and MU-15's
+// Fahrenheit vector 97, which depends on exactly that asymmetry to
+// produce a genuine FAIL at tolerance "0"). Routing a unit to itself
+// through that detour -- lb -> kg -> lb, using lb's own imperfectly
+// reciprocal factors -- manufactures a truncation error out of a
+// conversion that never needed to happen at all: a bound or a round trip
+// stated in the value's own already-declared unit (canonical_unit: lb
+// against a value arriving in lb) must be exact, because no unit
+// conversion is actually occurring. TestCheckMU07Quantity_
+// CanonicalUnitNotRegistryCanonical_BoundEnforced and
+// TestCheckMU15_CanonicalUnitNotRegistryCanonical_IdentityRoundTrip pin
+// this directly.
+//
+// Where from and to differ, the registry canonical is the only conversion
+// path a Unit exposes, so this goes through it: from.ToCanonical, then
+// to.FromCanonical. Its one failure mode is either step's own
+// (Unit.ToCanonical/FromCanonical's shared contract: an exponent-range
+// overflow), collapsed into one error since every caller treats both
+// identically -- INDETERMINATE, never an aborted evaluation (SPEC-MU §2.6
+// does not let one check's arithmetic failure discard its siblings'
+// results).
+func convertBetweenUnits(from, to tables.Unit, value decimal.Decimal) (decimal.Decimal, error) {
+	if from.Symbol() == to.Symbol() {
+		return value, nil
+	}
+	canonical, err := from.ToCanonical(value)
+	if err != nil {
+		return decimal.Decimal{}, err
+	}
+	return to.FromCanonical(canonical)
 }

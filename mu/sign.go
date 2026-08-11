@@ -26,10 +26,17 @@ type signDeclaration interface {
 // MU-06 rejects sign inversions -- a refund recorded as a positive charge,
 // or a credit as a debit.
 //
-// Branch matrix:
+// Applicability (SPEC-MU §2.5.1: applies to money and decimal, no further
+// gate):
 //   - no declaration for the field, or a declaration whose kind is
-//     neither money nor decimal → INDETERMINATE.
-//   - no governing sign resolves (see resolveSign) → INDETERMINATE.
+//     neither money nor decimal → not applicable.
+//
+// Branch matrix, once applicable:
+//   - the value is not coercible (§2.6.3; MU-06 is value-dependent) →
+//     INDETERMINATE, reason value_not_coercible.
+//   - no governing sign resolves (see resolveSign) → INDETERMINATE (§2.5.2:
+//     a signed amount has a sign convention whether or not the ruleset
+//     states one -- a required input, not a gate; vector 31).
 //   - the resolved sign is violated by the value (see signViolated) →
 //     FAIL.
 //   - otherwise → PASS.
@@ -47,18 +54,21 @@ type signDeclaration interface {
 // four-rule precedence this implements, and clauseState for how a single
 // clause's three-state taxonomy (matches / undecidable / definitively
 // does not match) is computed.
-func checkMU06(in Input) (verdict.Result, error) {
+func checkMU06(in Input) (verdict.Result, bool, error) {
 	decl, ok := in.Registry.Lookup(in.Field)
 	if !ok {
-		return indeterminateResult("MU-06")
+		return notApplicable()
 	}
 	signDecl, ok := decl.(signDeclaration)
 	if !ok {
+		return notApplicable()
+	}
+	if in.ValueCoercionFailed {
 		return indeterminateResult("MU-06")
 	}
 
-	sign, applicable := resolveSign(signDecl, in.Vals)
-	if !applicable {
+	sign, signResolves := resolveSign(signDecl, in.Vals)
+	if !signResolves {
 		return indeterminateResult("MU-06")
 	}
 

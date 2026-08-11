@@ -10,18 +10,31 @@ import (
 // MU-03 rejects a transaction whose currency differs from the target's
 // currency.
 //
-// Branch matrix -- every unmet requirement is INDETERMINATE, never PASS:
+// Applicability (SPEC-MU §2.5.1: applies to money, gated on
+// target_currency_field being declared -- §2.5.2 lists target_currency_field
+// among the attributes whose absence is a complete statement, "off by
+// default, enabled per field," not a gap):
 //   - no declaration for the field, or a declaration whose kind is not
-//     money → INDETERMINATE (only a money field carries a currency_field
-//     at all).
-//   - no currency_field declared → INDETERMINATE (the "Requires
-//     currency_field declaration" clause).
-//   - no target_currency_field declared → INDETERMINATE. See
-//     field.MoneyDeclaration.TargetCurrencyField's doc comment for why
-//     this attribute exists and what interpretive choice it represents.
+//     money → not applicable.
+//   - target_currency_field not declared → not applicable. This is the gate,
+//     not a missing-input INDETERMINATE: an author who never declared this
+//     attribute has said cross-currency comparison is not wanted here.
+//
+// MU-03 is not value-dependent (SPEC-MU §2.6.3's table): it never reads the
+// field's own decimal value, only two sibling currency codes, so §2.6.3's
+// coercion gate never applies to it and this function never consults
+// in.ValueCoercionFailed.
+//
+// Branch matrix, once applicable -- every unmet requirement is
+// INDETERMINATE, never PASS:
 //   - either side's sibling value is absent from Input.Vals, does not
 //     resolve to a JSON string, or is not exactly three ASCII letters →
-//     INDETERMINATE ("Either unresolvable → INDETERMINATE").
+//     INDETERMINATE ("Either unresolvable → INDETERMINATE"). This covers an
+//     undeclared currency_field too, per the "Requires currency_field
+//     declaration" clause: currency_field is a required input, unlike
+//     target_currency_field, because a money field always has a source
+//     currency question -- it is target_currency_field's declaration alone
+//     that decides whether MU-03 runs at all.
 //   - both resolve and, ASCII-uppercased, are equal → PASS.
 //   - both resolve and, ASCII-uppercased, are unequal → FAIL.
 //
@@ -41,10 +54,13 @@ import (
 // resolveDeclaredCurrency performs; see that function's own doc comment
 // in mu.go for the enumeration of every consumer this hazard note
 // requires.
-func checkMU03(in Input) (verdict.Result, error) {
+func checkMU03(in Input) (verdict.Result, bool, error) {
 	moneyDecl, ok := moneyDeclaration(in)
 	if !ok {
-		return indeterminateResult("MU-03")
+		return notApplicable()
+	}
+	if _, hasTarget := moneyDecl.TargetCurrencyField(); !hasTarget {
+		return notApplicable()
 	}
 
 	source, ok := resolveCurrencyCodeShape(in, moneyDecl.CurrencyField)

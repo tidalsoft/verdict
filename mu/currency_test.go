@@ -55,6 +55,32 @@ func TestCurrencyCodeShape(t *testing.T) {
 	}
 }
 
+// wantMU03 asserts every field SPEC-MU §8.3 constrains for a conformance
+// vector against checkMU03: CheckID, Class (ClassD), Severity
+// (SeverityBlock -- MU-03's only severity), and Outcome.
+func wantMU03(t *testing.T, in Input, want verdict.Outcome) {
+	t.Helper()
+	res, applicable, err := checkMU03(in)
+	if err != nil {
+		t.Fatalf("checkMU03 unexpected error: %v", err)
+	}
+	if !applicable {
+		t.Fatal("checkMU03 applicable = false, want true")
+	}
+	if res.CheckID() != "MU-03" {
+		t.Errorf("CheckID() = %q, want MU-03", res.CheckID())
+	}
+	if res.Class() != verdict.ClassD {
+		t.Errorf("Class() = %v, want ClassD", res.Class())
+	}
+	if res.Severity() != verdict.SeverityBlock {
+		t.Errorf("Severity() = %v, want SeverityBlock", res.Severity())
+	}
+	if res.Outcome() != want {
+		t.Errorf("Outcome() = %v, want %v", res.Outcome(), want)
+	}
+}
+
 func TestCheckMU03_Vector_46(t *testing.T) {
 	// Vector 46: source "USD", target "USD" -> PASS
 	in := Input{
@@ -66,16 +92,7 @@ func TestCheckMU03_Vector_46(t *testing.T) {
 		}),
 		Tables: Tables{ISO4217: tables.NewISO4217Table()},
 	}
-	res, err := checkMU03(in)
-	if err != nil {
-		t.Fatalf("checkMU03 unexpected error: %v", err)
-	}
-	if res.CheckID() != "MU-03" {
-		t.Errorf("CheckID() = %q, want MU-03", res.CheckID())
-	}
-	if res.Outcome() != verdict.OutcomePass {
-		t.Errorf("Outcome() = %v, want PASS", res.Outcome())
-	}
+	wantMU03(t, in, verdict.OutcomePass)
 }
 
 func TestCheckMU03_Vector_47(t *testing.T) {
@@ -89,13 +106,7 @@ func TestCheckMU03_Vector_47(t *testing.T) {
 		}),
 		Tables: Tables{ISO4217: tables.NewISO4217Table()},
 	}
-	res, err := checkMU03(in)
-	if err != nil {
-		t.Fatalf("checkMU03 unexpected error: %v", err)
-	}
-	if res.Outcome() != verdict.OutcomeFail {
-		t.Errorf("Outcome() = %v, want FAIL", res.Outcome())
-	}
+	wantMU03(t, in, verdict.OutcomeFail)
 }
 
 func TestCheckMU03_Vector_48(t *testing.T) {
@@ -109,13 +120,7 @@ func TestCheckMU03_Vector_48(t *testing.T) {
 		}),
 		Tables: Tables{ISO4217: tables.NewISO4217Table()},
 	}
-	res, err := checkMU03(in)
-	if err != nil {
-		t.Fatalf("checkMU03 unexpected error: %v", err)
-	}
-	if res.Outcome() != verdict.OutcomePass {
-		t.Errorf("Outcome() = %v, want PASS", res.Outcome())
-	}
+	wantMU03(t, in, verdict.OutcomePass)
 }
 
 func TestCheckMU03_Vector_49(t *testing.T) {
@@ -132,13 +137,7 @@ func TestCheckMU03_Vector_49(t *testing.T) {
 		Vals:     stringVals(map[string]string{"arguments.currency": "USD"}),
 		Tables:   Tables{ISO4217: tables.NewISO4217Table()},
 	}
-	res, err := checkMU03(in)
-	if err != nil {
-		t.Fatalf("checkMU03 unexpected error: %v", err)
-	}
-	if res.Outcome() != verdict.OutcomeIndeterminate {
-		t.Errorf("Outcome() = %v, want INDETERMINATE", res.Outcome())
-	}
+	wantMU03(t, in, verdict.OutcomeIndeterminate)
 }
 
 func TestCheckMU03_Vector_50(t *testing.T) {
@@ -151,13 +150,7 @@ func TestCheckMU03_Vector_50(t *testing.T) {
 		Vals:     stringVals(map[string]string{"arguments.target_currency": "USD"}),
 		Tables:   Tables{ISO4217: tables.NewISO4217Table()},
 	}
-	res, err := checkMU03(in)
-	if err != nil {
-		t.Fatalf("checkMU03 unexpected error: %v", err)
-	}
-	if res.Outcome() != verdict.OutcomeIndeterminate {
-		t.Errorf("Outcome() = %v, want INDETERMINATE", res.Outcome())
-	}
+	wantMU03(t, in, verdict.OutcomeIndeterminate)
 }
 
 func TestCheckMU03_Vector_108(t *testing.T) {
@@ -170,37 +163,31 @@ func TestCheckMU03_Vector_108(t *testing.T) {
 		Vals:     map[string]field.Value{},
 		Tables:   Tables{ISO4217: tables.NewISO4217Table()},
 	}
-	res, err := checkMU03(in)
-	if err != nil {
-		t.Fatalf("checkMU03 unexpected error: %v", err)
-	}
-	if res.Outcome() != verdict.OutcomeIndeterminate {
-		t.Errorf("Outcome() = %v, want INDETERMINATE", res.Outcome())
-	}
+	wantMU03(t, in, verdict.OutcomeIndeterminate)
 }
 
-func TestCheckMU03_NoDeclaration_Indeterminate(t *testing.T) {
+func TestCheckMU03_NoDeclaration_NotApplicable(t *testing.T) {
 	in := Input{Field: "arguments.amount", Registry: field.Registry{}}
-	res, err := checkMU03(in)
+	_, applicable, err := checkMU03(in)
 	if err != nil {
 		t.Fatalf("checkMU03 unexpected error: %v", err)
 	}
-	if res.Outcome() != verdict.OutcomeIndeterminate {
-		t.Errorf("Outcome() = %v, want INDETERMINATE", res.Outcome())
+	if applicable {
+		t.Error("checkMU03 applicable = true, want false (no declaration)")
 	}
 }
 
-func TestCheckMU03_WrongKind_Indeterminate(t *testing.T) {
+func TestCheckMU03_WrongKind_NotApplicable(t *testing.T) {
 	in := Input{
 		Field:    "arguments.amount",
 		Registry: mustRegistry(t, field.NewDecimalDeclaration()),
 	}
-	res, err := checkMU03(in)
+	_, applicable, err := checkMU03(in)
 	if err != nil {
 		t.Fatalf("checkMU03 unexpected error: %v", err)
 	}
-	if res.Outcome() != verdict.OutcomeIndeterminate {
-		t.Errorf("Outcome() = %v, want INDETERMINATE", res.Outcome())
+	if applicable {
+		t.Error("checkMU03 applicable = true, want false (wrong kind)")
 	}
 }
 
@@ -212,9 +199,12 @@ func TestCheckMU03_NoCurrencyField_Indeterminate(t *testing.T) {
 		Vals:     stringVals(map[string]string{"arguments.target_currency": "USD"}),
 		Tables:   Tables{ISO4217: tables.NewISO4217Table()},
 	}
-	res, err := checkMU03(in)
+	res, applicable, err := checkMU03(in)
 	if err != nil {
 		t.Fatalf("checkMU03 unexpected error: %v", err)
+	}
+	if !applicable {
+		t.Fatal("checkMU03 applicable = false, want true")
 	}
 	if res.Outcome() != verdict.OutcomeIndeterminate {
 		t.Errorf("Outcome() = %v, want INDETERMINATE", res.Outcome())
@@ -228,9 +218,12 @@ func TestCheckMU03_SourceSiblingAbsent_Indeterminate(t *testing.T) {
 		Vals:     stringVals(map[string]string{"arguments.target_currency": "USD"}),
 		Tables:   Tables{ISO4217: tables.NewISO4217Table()},
 	}
-	res, err := checkMU03(in)
+	res, applicable, err := checkMU03(in)
 	if err != nil {
 		t.Fatalf("checkMU03 unexpected error: %v", err)
+	}
+	if !applicable {
+		t.Fatal("checkMU03 applicable = false, want true")
 	}
 	if res.Outcome() != verdict.OutcomeIndeterminate {
 		t.Errorf("Outcome() = %v, want INDETERMINATE", res.Outcome())
@@ -254,9 +247,12 @@ func TestCheckMU03_SourceWrongShape_Indeterminate(t *testing.T) {
 		}),
 		Tables: Tables{ISO4217: tables.NewISO4217Table()},
 	}
-	res, err := checkMU03(in)
+	res, applicable, err := checkMU03(in)
 	if err != nil {
 		t.Fatalf("checkMU03 unexpected error: %v", err)
+	}
+	if !applicable {
+		t.Fatal("checkMU03 applicable = false, want true")
 	}
 	if res.Outcome() != verdict.OutcomeIndeterminate {
 		t.Errorf("Outcome() = %v, want INDETERMINATE", res.Outcome())
@@ -282,9 +278,12 @@ func TestCheckMU03_WellShapedButUntabledCurrency_ComparesNormally(t *testing.T) 
 		}),
 		Tables: tbl,
 	}
-	res, err := checkMU03(equal)
+	res, applicable, err := checkMU03(equal)
 	if err != nil {
 		t.Fatalf("checkMU03 unexpected error: %v", err)
+	}
+	if !applicable {
+		t.Fatal("checkMU03 applicable = false, want true")
 	}
 	if res.Outcome() != verdict.OutcomePass {
 		t.Errorf("Outcome() = %v, want PASS (untabled but matching shape)", res.Outcome())
@@ -299,16 +298,21 @@ func TestCheckMU03_WellShapedButUntabledCurrency_ComparesNormally(t *testing.T) 
 		}),
 		Tables: tbl,
 	}
-	res2, err := checkMU03(unequal)
+	res2, applicable2, err := checkMU03(unequal)
 	if err != nil {
 		t.Fatalf("checkMU03 unexpected error: %v", err)
+	}
+	if !applicable2 {
+		t.Fatal("checkMU03 applicable = false, want true")
 	}
 	if res2.Outcome() != verdict.OutcomeFail {
 		t.Errorf("Outcome() = %v, want FAIL", res2.Outcome())
 	}
 }
 
-func TestCheckMU03_NoTargetCurrencyField_Indeterminate(t *testing.T) {
+func TestCheckMU03_NoTargetCurrencyField_NotApplicable(t *testing.T) {
+	// SPEC-MU §2.5.1/§2.5.2: target_currency_field is MU-03's gate --
+	// "off by default, enabled per field" -- not a required-input gap.
 	decl := mustCurrencyField(t, field.NewMoneyDeclaration())
 	in := Input{
 		Field:    "arguments.amount",
@@ -316,12 +320,12 @@ func TestCheckMU03_NoTargetCurrencyField_Indeterminate(t *testing.T) {
 		Vals:     stringVals(map[string]string{"arguments.currency": "USD"}),
 		Tables:   Tables{ISO4217: tables.NewISO4217Table()},
 	}
-	res, err := checkMU03(in)
+	_, applicable, err := checkMU03(in)
 	if err != nil {
 		t.Fatalf("checkMU03 unexpected error: %v", err)
 	}
-	if res.Outcome() != verdict.OutcomeIndeterminate {
-		t.Errorf("Outcome() = %v, want INDETERMINATE", res.Outcome())
+	if applicable {
+		t.Error("checkMU03 applicable = true, want false (target_currency_field not declared)")
 	}
 }
 
@@ -332,9 +336,12 @@ func TestCheckMU03_TargetSiblingAbsent_Indeterminate(t *testing.T) {
 		Vals:     stringVals(map[string]string{"arguments.currency": "USD"}),
 		Tables:   Tables{ISO4217: tables.NewISO4217Table()},
 	}
-	res, err := checkMU03(in)
+	res, applicable, err := checkMU03(in)
 	if err != nil {
 		t.Fatalf("checkMU03 unexpected error: %v", err)
+	}
+	if !applicable {
+		t.Fatal("checkMU03 applicable = false, want true")
 	}
 	if res.Outcome() != verdict.OutcomeIndeterminate {
 		t.Errorf("Outcome() = %v, want INDETERMINATE", res.Outcome())
@@ -351,9 +358,12 @@ func TestCheckMU03_TargetWrongShape_Indeterminate(t *testing.T) {
 		}),
 		Tables: Tables{ISO4217: tables.NewISO4217Table()},
 	}
-	res, err := checkMU03(in)
+	res, applicable, err := checkMU03(in)
 	if err != nil {
 		t.Fatalf("checkMU03 unexpected error: %v", err)
+	}
+	if !applicable {
+		t.Fatal("checkMU03 applicable = false, want true")
 	}
 	if res.Outcome() != verdict.OutcomeIndeterminate {
 		t.Errorf("Outcome() = %v, want INDETERMINATE", res.Outcome())
@@ -375,9 +385,12 @@ func TestCheckMU03_SourceResolvesToNonString_Indeterminate(t *testing.T) {
 		},
 		Tables: Tables{ISO4217: tables.NewISO4217Table()},
 	}
-	res, err := checkMU03(in)
+	res, applicable, err := checkMU03(in)
 	if err != nil {
 		t.Fatalf("checkMU03 unexpected error: %v", err)
+	}
+	if !applicable {
+		t.Fatal("checkMU03 applicable = false, want true")
 	}
 	if res.Outcome() != verdict.OutcomeIndeterminate {
 		t.Errorf("Outcome() = %v, want INDETERMINATE", res.Outcome())
@@ -395,11 +408,5 @@ func TestCheckMU14_CurrencyResolvesToNonString_Indeterminate(t *testing.T) {
 		Vals:     map[string]field.Value{"arguments.currency": field.NewBoolValue(true)},
 		Tables:   Tables{ISO4217: tables.NewISO4217Table()},
 	}
-	res, err := checkMU14(in)
-	if err != nil {
-		t.Fatalf("checkMU14 unexpected error: %v", err)
-	}
-	if res.Outcome() != verdict.OutcomeIndeterminate {
-		t.Errorf("Outcome() = %v, want INDETERMINATE", res.Outcome())
-	}
+	wantMU14(t, in, verdict.OutcomeIndeterminate)
 }

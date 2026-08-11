@@ -38,6 +38,50 @@ func TestDimension_String(t *testing.T) {
 	}
 }
 
+func TestParseDimension(t *testing.T) {
+	cases := []struct {
+		name string
+		in   string
+		want Dimension
+		ok   bool
+	}{
+		{"mass", "mass", DimensionMass, true},
+		{"length", "length", DimensionLength, true},
+		{"volume", "volume", DimensionVolume, true},
+		{"time", "time", DimensionTime, true},
+		{"temperature", "temperature", DimensionTemperature, true},
+		{"area", "area", DimensionArea, true},
+		{"speed", "speed", DimensionSpeed, true},
+		{"energy", "energy", DimensionEnergy, true},
+		{"pressure", "pressure", DimensionPressure, true},
+		// SPEC-MU §4's own spelling -- a space and a hyphen -- not this
+		// package's internal String() spelling (underscore); see
+		// ParseDimension's own doc comment.
+		{"digital storage (spec spelling)", "digital storage", DimensionDigitalStorage, true},
+		{"angle", "angle", DimensionAngle, true},
+		{"currency-per-unit (spec spelling)", "currency-per-unit", DimensionCurrencyPerUnit, true},
+		// This package's own internal spelling is deliberately not
+		// accepted as input: ParseDimension validates against the spec's
+		// normative tokens only, not its own String() output.
+		{"digital_storage (internal spelling) rejected", "digital_storage", DimensionUnspecified, false},
+		{"currency_per_unit (internal spelling) rejected", "currency_per_unit", DimensionUnspecified, false},
+		{"empty", "", DimensionUnspecified, false},
+		{"unrecognised", "weight", DimensionUnspecified, false},
+		{"case sensitive", "Mass", DimensionUnspecified, false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got, ok := ParseDimension(tc.in)
+			if ok != tc.ok {
+				t.Fatalf("ParseDimension(%q) ok = %v, want %v", tc.in, ok, tc.ok)
+			}
+			if ok && got != tc.want {
+				t.Errorf("ParseDimension(%q) = %v, want %v", tc.in, got, tc.want)
+			}
+		})
+	}
+}
+
 func TestDimension_Valid(t *testing.T) {
 	if DimensionUnspecified.valid() {
 		t.Error("DimensionUnspecified.valid() = true, want false")

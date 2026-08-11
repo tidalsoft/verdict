@@ -25,17 +25,45 @@ func usdInput(t *testing.T, tbl tables.CurrencyTable, value, currencyCode string
 	}
 }
 
+// wantMU14 asserts every field SPEC-MU §8.3 constrains for a conformance
+// vector against checkMU14: CheckID, Class (ClassD), Severity
+// (SeverityBlock -- MU-14's only severity), and Outcome.
 func wantMU14(t *testing.T, in Input, want verdict.Outcome) {
 	t.Helper()
-	res, err := checkMU14(in)
+	res, applicable, err := checkMU14(in)
 	if err != nil {
 		t.Fatalf("checkMU14 unexpected error: %v", err)
+	}
+	if !applicable {
+		t.Fatal("checkMU14 applicable = false, want true")
 	}
 	if res.CheckID() != "MU-14" {
 		t.Errorf("CheckID() = %q, want MU-14", res.CheckID())
 	}
+	if res.Class() != verdict.ClassD {
+		t.Errorf("Class() = %v, want ClassD", res.Class())
+	}
+	if res.Severity() != verdict.SeverityBlock {
+		t.Errorf("Severity() = %v, want SeverityBlock", res.Severity())
+	}
 	if res.Outcome() != want {
 		t.Errorf("Outcome() = %v, want %v", res.Outcome(), want)
+	}
+}
+
+// wantMU14NotApplicable asserts checkMU14 reports applicable == false for
+// in: the field's kind is outside MU-14's Applies to set, or scale is
+// declared minor_units -- MU-14's gate reading false outright (as opposed
+// to scale being absent entirely, where the gate is undecidable and MU-14
+// is INDETERMINATE; see checkMU14's own doc comment).
+func wantMU14NotApplicable(t *testing.T, in Input) {
+	t.Helper()
+	_, applicable, err := checkMU14(in)
+	if err != nil {
+		t.Fatalf("checkMU14 unexpected error: %v", err)
+	}
+	if applicable {
+		t.Error("checkMU14 applicable = true, want false")
 	}
 }
 
@@ -107,23 +135,23 @@ func TestCheckMU14_Vector_102(t *testing.T) {
 	wantMU14(t, in, verdict.OutcomeIndeterminate)
 }
 
-func TestCheckMU14_NoDeclaration_Indeterminate(t *testing.T) {
+func TestCheckMU14_NoDeclaration_NotApplicable(t *testing.T) {
 	in := Input{
 		Field:    "arguments.amount",
 		Value:    mustParse(t, "49.99"),
 		Registry: field.Registry{},
 	}
-	wantMU14(t, in, verdict.OutcomeIndeterminate)
+	wantMU14NotApplicable(t, in)
 }
 
-func TestCheckMU14_WrongKind_Indeterminate(t *testing.T) {
+func TestCheckMU14_WrongKind_NotApplicable(t *testing.T) {
 	decl := field.NewDecimalDeclaration()
 	in := Input{
 		Field:    "arguments.amount",
 		Value:    mustParse(t, "49.99"),
 		Registry: mustRegistry(t, decl),
 	}
-	wantMU14(t, in, verdict.OutcomeIndeterminate)
+	wantMU14NotApplicable(t, in)
 }
 
 func TestCheckMU14_NoScale_Indeterminate(t *testing.T) {
@@ -138,8 +166,9 @@ func TestCheckMU14_NoScale_Indeterminate(t *testing.T) {
 	wantMU14(t, in, verdict.OutcomeIndeterminate)
 }
 
-func TestCheckMU14_MinorUnits_Indeterminate(t *testing.T) {
-	// scale: minor_units is MU-01's territory, not MU-14's.
+func TestCheckMU14_MinorUnits_NotApplicable(t *testing.T) {
+	// scale: minor_units is MU-01's territory, not MU-14's: the gate reads
+	// false outright, so this is not applicable, not INDETERMINATE.
 	decl := mustCurrencyField(t, mustScale(t, field.NewMoneyDeclaration(), field.ScaleMinorUnits))
 	in := Input{
 		Field:    "arguments.amount",
@@ -148,7 +177,7 @@ func TestCheckMU14_MinorUnits_Indeterminate(t *testing.T) {
 		Vals:     stringVals(map[string]string{"arguments.currency": "USD"}),
 		Tables:   Tables{ISO4217: tables.NewISO4217Table()},
 	}
-	wantMU14(t, in, verdict.OutcomeIndeterminate)
+	wantMU14NotApplicable(t, in)
 }
 
 func TestCheckMU14_NoCurrencyField_Indeterminate(t *testing.T) {
@@ -205,6 +234,22 @@ func TestCheckMU14_EmptyTables_Indeterminate(t *testing.T) {
 		Value:    mustParse(t, "49.99"),
 		Registry: mustRegistry(t, decl),
 		Vals:     stringVals(map[string]string{"arguments.currency": "USD"}),
+	}
+	wantMU14(t, in, verdict.OutcomeIndeterminate)
+}
+
+func TestCheckMU14_ValueNotCoercible_Indeterminate(t *testing.T) {
+	// SPEC-MU §2.6.3: MU-14 is value-dependent, so once its own gate
+	// (scale: major_units) is satisfied, a value the coercion gate could
+	// not read is INDETERMINATE before the currency exponent is even
+	// resolved -- Value must not be read once ValueCoercionFailed is true.
+	decl := mustCurrencyField(t, mustScale(t, field.NewMoneyDeclaration(), field.ScaleMajorUnits))
+	in := Input{
+		Field:               "arguments.amount",
+		ValueCoercionFailed: true,
+		Registry:            mustRegistry(t, decl),
+		Vals:                stringVals(map[string]string{"arguments.currency": "USD"}),
+		Tables:              Tables{ISO4217: tables.NewISO4217Table()},
 	}
 	wantMU14(t, in, verdict.OutcomeIndeterminate)
 }

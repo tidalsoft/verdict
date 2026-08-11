@@ -13,19 +13,26 @@ import (
 // kind to one function per kind; bounded (mu.go) is the one comparison
 // every branch ends in once its own normalization is done.
 //
-// Branch matrix -- every unmet requirement is INDETERMINATE, never PASS
-// (invariant 1):
-//   - no declaration for the field at all → INDETERMINATE.
+// Applicability (SPEC-MU §2.5.1: applies to money, decimal, percentage, and
+// quantity, gated on `min` or `max` being declared):
+//   - no declaration for the field at all → not applicable.
 //   - a declaration of a kind this check does not apply to (timestamp,
-//     identifier) → INDETERMINATE.
-//   - neither min nor max declared, on any kind → INDETERMINATE (the
-//     "Requires min and/or max" gate all four branches share).
-//   - each kind's own further requirements are documented on its own
-//     function below.
-func checkMU07(in Input) (verdict.Result, error) {
+//     identifier) → not applicable.
+//   - neither min nor max declared, on any kind → not applicable (§2.5.2:
+//     "a field with neither is simply unbounded" is a coherent, complete
+//     declaration, the gate every one of the four branches below shares).
+//
+// Everything else each kind's *Requires* clause names -- money's scale and
+// currency, quantity's canonical_unit and resolvable value unit,
+// percentage's domain -- is a required input once the gate above has
+// passed, not a further gate: SPEC-MU §2.5.2 names exactly this check as
+// the example of an attribute (canonical_unit) that gates one check
+// (MU-15) and is required by another (this one). Each kind's own required
+// inputs are documented on its own function below.
+func checkMU07(in Input) (verdict.Result, bool, error) {
 	decl, ok := in.Registry.Lookup(in.Field)
 	if !ok {
-		return indeterminateResult("MU-07")
+		return notApplicable()
 	}
 
 	switch d := decl.(type) {
@@ -38,7 +45,7 @@ func checkMU07(in Input) (verdict.Result, error) {
 	case field.QuantityDeclaration:
 		return checkMU07Quantity(in, d)
 	default:
-		return indeterminateResult("MU-07")
+		return notApplicable()
 	}
 }
 
@@ -62,8 +69,13 @@ func checkMU07(in Input) (verdict.Result, error) {
 // note); vector 62 catches an implementation that hardcodes exponent 2;
 // vector 63 pins that a major_units field reads no currency at all.
 //
-// Branch matrix -- every unmet requirement is INDETERMINATE, never PASS:
-//   - no min and no max declared at all → INDETERMINATE.
+// Gate: neither min nor max declared → not applicable (§2.5.2: "a field
+// with neither is simply unbounded").
+//
+// Branch matrix, once applicable -- every unmet requirement is
+// INDETERMINATE, never PASS:
+//   - the value is not coercible (§2.6.3; MU-07 is value-dependent on every
+//     kind) → INDETERMINATE, reason value_not_coercible.
 //   - no scale declared → INDETERMINATE. Without knowing which unit the
 //     value is in, there is no safe way to normalize a major-units bound
 //     against it.
@@ -85,10 +97,13 @@ func checkMU07(in Input) (verdict.Result, error) {
 //     read).
 //   - a resolved comparison → delegates to bounded, which returns FAIL
 //     where the value falls outside a bound and PASS otherwise.
-func checkMU07Money(in Input, decl field.MoneyDeclaration) (verdict.Result, error) {
+func checkMU07Money(in Input, decl field.MoneyDeclaration) (verdict.Result, bool, error) {
 	min, hasMin := decl.Min()
 	max, hasMax := decl.Max()
 	if !hasMin && !hasMax {
+		return notApplicable()
+	}
+	if in.ValueCoercionFailed {
 		return indeterminateResult("MU-07")
 	}
 
@@ -136,12 +151,17 @@ func checkMU07Money(in Input, decl field.MoneyDeclaration) (verdict.Result, erro
 // money, percentage, or quantity, all of which need at least one further
 // declared attribute before their bounds and value are comparable at all.
 //
-// Branch matrix: no min and no max declared → INDETERMINATE; otherwise
-// delegates directly to bounded, against the field's own value.
-func checkMU07Decimal(in Input, decl field.DecimalDeclaration) (verdict.Result, error) {
+// Gate: neither min nor max declared → not applicable. Once applicable, the
+// value is not coercible (§2.6.3; MU-07 is value-dependent) → INDETERMINATE,
+// reason value_not_coercible; otherwise delegates directly to bounded,
+// against the field's own value.
+func checkMU07Decimal(in Input, decl field.DecimalDeclaration) (verdict.Result, bool, error) {
 	min, hasMin := decl.Min()
 	max, hasMax := decl.Max()
 	if !hasMin && !hasMax {
+		return notApplicable()
+	}
+	if in.ValueCoercionFailed {
 		return indeterminateResult("MU-07")
 	}
 	return bounded(decl, in.Value, min, hasMin, max, hasMax)
@@ -154,13 +174,17 @@ func checkMU07Decimal(in Input, decl field.DecimalDeclaration) (verdict.Result, 
 // that is settled, since the value already carries the same units the
 // bound was written in.
 //
-// Branch matrix: no min and no max declared → INDETERMINATE; domain not
-// declared → INDETERMINATE (vector 66); otherwise delegates to bounded,
-// against the field's own value.
-func checkMU07Percentage(in Input, decl field.PercentageDeclaration) (verdict.Result, error) {
+// Gate: neither min nor max declared → not applicable. Once applicable: the
+// value is not coercible (§2.6.3; MU-07 is value-dependent) → INDETERMINATE,
+// reason value_not_coercible; domain not declared → INDETERMINATE (vector
+// 66); otherwise delegates to bounded, against the field's own value.
+func checkMU07Percentage(in Input, decl field.PercentageDeclaration) (verdict.Result, bool, error) {
 	min, hasMin := decl.Min()
 	max, hasMax := decl.Max()
 	if !hasMin && !hasMax {
+		return notApplicable()
+	}
+	if in.ValueCoercionFailed {
 		return indeterminateResult("MU-07")
 	}
 	if _, hasDomain := decl.Domain(); !hasDomain {
@@ -176,10 +200,16 @@ func checkMU07Percentage(in Input, decl field.PercentageDeclaration) (verdict.Re
 // (unit.go) is the shared resolution this branch shares with MU-04,
 // MU-05, and MU-15; see its doc comment for the consumer trace.
 //
-// Branch matrix -- every unmet requirement is INDETERMINATE, never PASS:
-//   - no min and no max declared → INDETERMINATE.
+// Gate: neither min nor max declared → not applicable.
+//
+// Branch matrix, once applicable -- every unmet requirement is
+// INDETERMINATE, never PASS:
+//   - the value is not coercible (§2.6.3; MU-07 is value-dependent) →
+//     INDETERMINATE, reason value_not_coercible.
 //   - canonical_unit is not declared → INDETERMINATE (vector 98: "bounds
-//     have no stated units").
+//     have no stated units"; §2.5.2 names canonical_unit as the attribute
+//     that gates MU-15 and is required by this check -- two different
+//     roles on the same attribute).
 //   - canonical_unit is declared but the registry does not recognise it →
 //     INDETERMINATE: same consequence as it not being declared at all.
 //   - no unit resolves for the value → INDETERMINATE (vector 67).
@@ -191,15 +221,21 @@ func checkMU07Percentage(in Input, decl field.PercentageDeclaration) (verdict.Re
 //     dimension than canonical_unit's own → INDETERMINATE (vector 119) --
 //     independent of MU-04's own FAIL on the identical input (SPEC-MU
 //     §2.1: each check's outcome is its own).
-//   - conversion overflows (ToCanonical's one failure mode) →
+//   - conversion overflows (convertBetweenUnits' one failure mode) →
 //     INDETERMINATE, never an aborting error (see checkMU07Money's own
 //     note on this for the money branch's equivalent case).
-//   - a resolved comparison, on the canonical-unit-converted value →
-//     delegates to bounded (vector 84).
-func checkMU07Quantity(in Input, decl field.QuantityDeclaration) (verdict.Result, error) {
+//   - a resolved comparison, on the value expressed in the *declared*
+//     canonical_unit (convertBetweenUnits -- see its own doc comment for
+//     why this is not simply "convert to the registry's per-dimension
+//     canonical," the defect this branch previously had) → delegates to
+//     bounded (vector 84).
+func checkMU07Quantity(in Input, decl field.QuantityDeclaration) (verdict.Result, bool, error) {
 	min, hasMin := decl.Min()
 	max, hasMax := decl.Max()
 	if !hasMin && !hasMax {
+		return notApplicable()
+	}
+	if in.ValueCoercionFailed {
 		return indeterminateResult("MU-07")
 	}
 
@@ -225,7 +261,7 @@ func checkMU07Quantity(in Input, decl field.QuantityDeclaration) (verdict.Result
 		return indeterminateResult("MU-07")
 	}
 
-	converted, err := valueUnit.ToCanonical(in.Value)
+	converted, err := convertBetweenUnits(valueUnit, canonicalUnit, in.Value)
 	if err != nil {
 		return indeterminateResult("MU-07")
 	}

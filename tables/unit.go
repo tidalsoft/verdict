@@ -97,6 +97,59 @@ func (d Dimension) valid() bool {
 	}
 }
 
+// ParseDimension parses s against SPEC-MU §4's "Supported dimensions"
+// list -- the closed enumeration §2.4.2 points a QuantityDeclaration's
+// `dimension` attribute at -- and reports the matching Dimension and true,
+// or the zero Dimension and false if s matches none of them.
+//
+// Matching is exact against the spec's own normative spelling, which is
+// not always the same text Dimension.String() renders: §4 writes "digital
+// storage" (a space) and "currency-per-unit" (a hyphen), while String()
+// -- this package's own internal/display spelling, chosen to be a valid
+// Go-style token -- renders "digital_storage" and "currency_per_unit". A
+// ruleset author writing dimension: "digital storage" is following the
+// only normative enumeration the spec ever gives; rejecting it because
+// this package's internal spelling differs would be validating against
+// this package's own implementation detail instead of the document. Every
+// other dimension token is a single word and spelled identically both
+// ways, so this distinction bites on exactly two of the twelve.
+//
+// field.QuantityDeclaration.WithDimension is this function's one caller
+// outside this package's own tests -- see its doc comment for why
+// validating the closed set at construction, rather than leaving an
+// unrecognised string to reach MU-04 at evaluation time, is required by
+// SPEC-MU §2.2's zero-false-positive guarantee for Class D checks.
+func ParseDimension(s string) (Dimension, bool) {
+	switch s {
+	case "mass":
+		return DimensionMass, true
+	case "length":
+		return DimensionLength, true
+	case "volume":
+		return DimensionVolume, true
+	case "time":
+		return DimensionTime, true
+	case "temperature":
+		return DimensionTemperature, true
+	case "area":
+		return DimensionArea, true
+	case "speed":
+		return DimensionSpeed, true
+	case "energy":
+		return DimensionEnergy, true
+	case "pressure":
+		return DimensionPressure, true
+	case "digital storage":
+		return DimensionDigitalStorage, true
+	case "angle":
+		return DimensionAngle, true
+	case "currency-per-unit":
+		return DimensionCurrencyPerUnit, true
+	default:
+		return DimensionUnspecified, false
+	}
+}
+
 // Unit is a single entry in the unit registry: a symbol (e.g. "kg", "lb",
 // "°F"), the Dimension it belongs to, and the affine transform to and from
 // that dimension's chosen canonical unit -- canonical = value*ToScale +

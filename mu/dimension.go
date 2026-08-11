@@ -11,11 +11,25 @@ import (
 // MU-04 rejects a quantity whose unit belongs to a different physical
 // dimension than the field requires.
 //
-// Branch matrix:
+// Applicability (SPEC-MU §2.5.1: applies to quantity, no further gate):
 //   - no declaration for the field, or a declaration whose kind is not
-//     quantity → INDETERMINATE (the "Requires kind: quantity" clause).
+//     quantity → not applicable.
+//
+// MU-04 is not value-dependent (SPEC-MU §2.6.3's table): it never reads the
+// field's own decimal value, only its unit, so §2.6.3's coercion gate never
+// applies to it.
+//
+// dimension itself is drawn from tables.Dimension's closed enumeration --
+// field.QuantityDeclaration.WithDimension rejects anything else at
+// construction (SPEC-MU §4's "Supported dimensions" list), so an
+// unrecognised dimension string never reaches this function at all; see
+// its own doc comment for why that rejection belongs at construction
+// rather than as a manufactured FAIL here.
+//
+// Branch matrix, once applicable:
 //   - quantity declaration with no dimension declared → INDETERMINATE
-//     (vector 57).
+//     (§2.5.2: a quantity has a dimension whether or not the ruleset says
+//     which -- a required input, not a gate; vector 57).
 //   - the unit does not resolve at all -- neither embedded in the value
 //     nor from unit_field -- → INDETERMINATE (vector 56): "a bare number
 //     is not a wrong unit, it is an absent one," which is MU-05's report,
@@ -32,14 +46,14 @@ import (
 //     → PASS (vector 22, and vector 26's affine-conversion case: MU-04
 //     itself performs no conversion, only a dimension-bucket lookup, so
 //     Fahrenheit resolving to DimensionTemperature is enough).
-func checkMU04(in Input) (verdict.Result, error) {
+func checkMU04(in Input) (verdict.Result, bool, error) {
 	decl, ok := in.Registry.Lookup(in.Field)
 	if !ok {
-		return indeterminateResult("MU-04")
+		return notApplicable()
 	}
 	qDecl, ok := decl.(field.QuantityDeclaration)
 	if !ok {
-		return indeterminateResult("MU-04")
+		return notApplicable()
 	}
 	dimension, hasDimension := qDecl.Dimension()
 	if !hasDimension {

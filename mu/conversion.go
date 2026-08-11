@@ -28,11 +28,25 @@ func defaultQuantityTolerance() decimal.Decimal {
 // carries SeverityWarn (warnResult), not just its FAIL branch (contrast
 // MU-13, whose block default is overridden on one branch only).
 //
-// Branch matrix -- every unmet requirement is INDETERMINATE, never PASS:
+// Applicability (SPEC-MU §2.5.1: applies to quantity, gated on
+// `canonical_unit` being declared -- §2.5.2's own example of an attribute
+// that gates this check while being merely a required input on MU-07):
 //   - no declaration for the field, or a declaration whose kind is not
-//     quantity → INDETERMINATE.
-//   - canonical_unit is not declared → INDETERMINATE (the "Applies to...
-//     canonical_unit is declared" gate).
+//     quantity → not applicable. Reported the same way every other not
+//     applicable check is: no entry at all, regardless of MU-15's own warn
+//     default severity -- that severity governs the Result this function
+//     builds once it is applicable, never whether one is built at all.
+//   - canonical_unit is not declared → not applicable (the gate itself).
+//
+// Branch matrix, once applicable -- every unmet requirement is
+// INDETERMINATE, never PASS:
+//   - the value is not coercible (§2.6.3; MU-15 is value-dependent) →
+//     INDETERMINATE, reason value_not_coercible. Checked immediately after
+//     the applicability gate and before any required-input logic below --
+//     the same position every other value-dependent check in this package
+//     uses -- so that a value the coercion gate could not read is reported
+//     as such rather than as whatever required-input gap the branch below
+//     it happens to be.
 //   - canonical_unit is declared but the registry does not recognise it →
 //     INDETERMINATE: there is no canonical unit to convert to or from.
 //   - the value's unit does not resolve at all → INDETERMINATE (vector
@@ -52,18 +66,21 @@ func defaultQuantityTolerance() decimal.Decimal {
 //     decimal approximation of 5/9 and therefore never round-trips
 //     exactly).
 //   - otherwise → PASS (vector 83).
-func checkMU15(in Input) (verdict.Result, error) {
+func checkMU15(in Input) (verdict.Result, bool, error) {
 	decl, ok := in.Registry.Lookup(in.Field)
 	if !ok {
-		return warnResult("MU-15", verdict.OutcomeIndeterminate)
+		return notApplicable()
 	}
 	qDecl, ok := decl.(field.QuantityDeclaration)
 	if !ok {
-		return warnResult("MU-15", verdict.OutcomeIndeterminate)
+		return notApplicable()
 	}
 
 	canonicalSymbol, hasCanonical := qDecl.CanonicalUnit()
 	if !hasCanonical {
+		return notApplicable()
+	}
+	if in.ValueCoercionFailed {
 		return warnResult("MU-15", verdict.OutcomeIndeterminate)
 	}
 	canonicalUnit, found := in.Tables.Units.Lookup(canonicalSymbol)
@@ -84,7 +101,7 @@ func checkMU15(in Input) (verdict.Result, error) {
 		return warnResult("MU-15", verdict.OutcomeIndeterminate)
 	}
 
-	roundTripped, err := roundTrip(valueUnit, in.Value)
+	roundTripped, err := roundTrip(valueUnit, canonicalUnit, in.Value)
 	if err != nil {
 		return warnResult("MU-15", verdict.OutcomeIndeterminate)
 	}
@@ -104,20 +121,25 @@ func checkMU15(in Input) (verdict.Result, error) {
 	return warnResult("MU-15", verdict.OutcomePass)
 }
 
-// roundTrip converts value to unit's dimension's canonical unit and back,
-// entirely in exact decimal arithmetic. Its one failure mode is either
-// conversion step's own (Unit.ToCanonical/FromCanonical's shared
-// contract: an exponent-range overflow), collapsed into a single error
-// here rather than reported per-step, since checkMU15 treats both
-// identically -- INDETERMINATE, never an aborted evaluation (SPEC-MU §2.6
-// does not let one check's arithmetic failure discard its siblings'
-// results).
-func roundTrip(unit tables.Unit, value decimal.Decimal) (decimal.Decimal, error) {
-	canonical, err := unit.ToCanonical(value)
+// roundTrip converts value, expressed in valueUnit, to the *declared*
+// canonicalUnit and back to valueUnit -- SPEC-MU §4 MU-15's own
+// definition, "the value converted to the canonical unit and back is not
+// the value that arrived" -- entirely via convertBetweenUnits (unit.go),
+// whose own doc comment explains why this must go by way of the declared
+// canonicalUnit rather than always the registry's fixed per-dimension
+// canonical, and why a value already expressed in canonicalUnit
+// round-trips exactly regardless of that unit's own stored factors. Its
+// one failure mode is either leg's own (convertBetweenUnits' contract: an
+// exponent-range overflow), collapsed into a single error here rather
+// than reported per-leg, since checkMU15 treats both identically --
+// INDETERMINATE, never an aborted evaluation (SPEC-MU §2.6 does not let
+// one check's arithmetic failure discard its siblings' results).
+func roundTrip(valueUnit, canonicalUnit tables.Unit, value decimal.Decimal) (decimal.Decimal, error) {
+	inCanonical, err := convertBetweenUnits(valueUnit, canonicalUnit, value)
 	if err != nil {
 		return decimal.Decimal{}, err
 	}
-	return unit.FromCanonical(canonical)
+	return convertBetweenUnits(canonicalUnit, valueUnit, inCanonical)
 }
 
 // exceedsTolerance reports whether roundTripped's absolute difference
