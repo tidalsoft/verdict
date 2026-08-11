@@ -2,7 +2,6 @@ package decimal
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/cockroachdb/apd/v3"
 )
@@ -33,27 +32,43 @@ type Decimal struct {
 	v apd.Decimal
 }
 
-// Parse parses s as an exact decimal number. s must be the plain-text
-// decimal-string form used for monetary and quantity values on the wire
-// (e.g. "49.99", "-10.5", "0"). Malformed text produces a clearly wrapped
+// Parse parses s as decimal text (SPEC-MU §2.6.1): an optional leading
+// sign, a significand, and an optional exponent -- "49.99", "-10.5", "0",
+// and "5e-3" are all valid. Malformed text produces a clearly wrapped
 // error; non-finite forms ("NaN", "Infinity", "-Infinity") are rejected
 // too, since neither is a valid monetary or quantity value.
 //
-// Scientific/exponential notation ("1E3", "1.5e10", "-2E-5") is rejected
-// even though the underlying library accepts it: the wire format here is
-// plain decimal, a customer's tool-call argument is never going to arrive
-// as "1E3" for a dollar amount, and accepting it here would let this
-// package's own String() echo a value back out in a form the wire format
-// does not permit (see String's doc comment).
+// # Exponents are part of the wire format, not an extension to it
+//
+// An earlier version of this function rejected scientific/exponential
+// notation outright. SPEC-MU §2.6.1's decimal-text grammar admits an
+// exponent deliberately: "An exponent is admitted, because JSON
+// serialisers emit one unbidden and because this document's own default
+// for tolerance is written 1e-9." Rejecting it here would make this
+// package unable to parse either the values that grammar declares valid or
+// its own SPEC-MU §2.4.2 default. Vector 42 (MU-01) pins the case
+// directly -- "100e-2" is minor_units input carrying two decimal places,
+// exactly as if it had been written "1.00" -- which this function must be
+// able to parse at all before MU-01 can ever see it.
+//
+// The result's decimal-place count still reflects the text as written --
+// see DecimalPlaces' doc comment -- and apd's own literal-exponent parsing
+// (rather than a normalised/reduced coefficient) is what makes "100e-2"
+// report 2 decimal places, "5e-3" report 3, and "1.2e3" report 0, matching
+// SPEC-MU §2.6.1's own worked examples exactly with no extra logic in this
+// package: apd stores "100e-2" as coefficient 100 at exponent -2, not as a
+// reduced coefficient 1 at exponent 0.
+//
+// String() always renders the parsed result back out in plain-decimal
+// form regardless of whether s itself used exponential notation -- see its
+// own doc comment -- so accepting an exponent on the way in never lets one
+// leak back out through this package's own output.
 //
 // Decimal places are preserved exactly as written — Parse does not
-// normalise trailing zeros or reduce the coefficient — because MU-14
-// (minor_unit_exponent) needs to know how many decimal places the caller
-// actually supplied, not a mathematically-reduced count.
+// normalise trailing zeros or reduce the coefficient — because MU-01/MU-14
+// need to know how many decimal places the caller actually supplied, not a
+// mathematically-reduced count.
 func Parse(s string) (Decimal, error) {
-	if strings.ContainsAny(s, "eE") {
-		return Decimal{}, fmt.Errorf("decimal: parse %q: scientific notation is not a valid decimal string", s)
-	}
 	d, _, err := apd.NewFromString(s)
 	if err != nil {
 		return Decimal{}, fmt.Errorf("decimal: parse %q: %w", s, err)
@@ -129,6 +144,30 @@ func (d Decimal) Sub(other Decimal) (Decimal, error) {
 		return Decimal{}, fmt.Errorf("decimal: subtract (%s) - (%s): %w", operandSummary(d), operandSummary(other), err)
 	}
 	return Decimal{v: diff}, nil
+}
+
+// Mul returns the exact product d * other. Multiplying two finite decimals
+// is always exact -- the result's coefficient is the product of the two
+// operands' coefficients and its exponent their sum, with no rounding
+// involved at any precision -- so, exactly as with Add and Sub, the only
+// failure mode is the product's exponent falling outside the range this
+// package's underlying arithmetic supports.
+//
+// MU-04/MU-05/MU-07/MU-15 (quantity unit conversion, SPEC-MU §4) need
+// multiplication to apply a unit's scale factor -- kg = lb * 0.45359237,
+// K = °F * (a decimal approximation of 5/9) + offset -- entirely in exact
+// decimal arithmetic, never float64. A conversion factor that is not
+// itself exactly representable as a decimal (Fahrenheit's 5/9) is supplied
+// by the caller pre-truncated to a fixed number of digits; Mul itself
+// performs no rounding and cannot introduce imprecision of its own -- see
+// tables.NewUnitRegistry's doc comment for where that truncation happens
+// and why.
+func (d Decimal) Mul(other Decimal) (Decimal, error) {
+	var product apd.Decimal
+	if _, err := exactContext().Mul(&product, &d.v, &other.v); err != nil {
+		return Decimal{}, fmt.Errorf("decimal: multiply (%s) * (%s): %w", operandSummary(d), operandSummary(other), err)
+	}
+	return Decimal{v: product}, nil
 }
 
 // Abs returns the absolute value of d. This only ever flips a sign flag —

@@ -25,8 +25,17 @@ func TestQuantityDeclaration_ZeroValue(t *testing.T) {
 	if d.UnitRequired() {
 		t.Fatal("UnitRequired() on fresh declaration = true, want false")
 	}
+	if _, ok := d.Min(); ok {
+		t.Fatal("Min() on fresh declaration: ok = true, want false")
+	}
 	if _, ok := d.Max(); ok {
 		t.Fatal("Max() on fresh declaration: ok = true, want false")
+	}
+	if d.ExclusiveMin() {
+		t.Fatal("ExclusiveMin() on fresh declaration = true, want false")
+	}
+	if d.ExclusiveMax() {
+		t.Fatal("ExclusiveMax() on fresh declaration = true, want false")
 	}
 	if _, ok := d.Tolerance(); ok {
 		t.Fatal("Tolerance() on fresh declaration: ok = true, want false")
@@ -98,7 +107,11 @@ func TestQuantityDeclaration_WithUnitRequired(t *testing.T) {
 	}
 }
 
-func TestQuantityDeclaration_MaxAndTolerance(t *testing.T) {
+func TestQuantityDeclaration_MinMaxAndTolerance(t *testing.T) {
+	min, err := decimal.Parse("0")
+	if err != nil {
+		t.Fatalf("decimal.Parse: %v", err)
+	}
 	max, err := decimal.Parse("1000")
 	if err != nil {
 		t.Fatalf("decimal.Parse: %v", err)
@@ -108,8 +121,12 @@ func TestQuantityDeclaration_MaxAndTolerance(t *testing.T) {
 		t.Fatalf("decimal.Parse: %v", err)
 	}
 
-	d := NewQuantityDeclaration().WithMax(max).WithTolerance(tolerance)
+	d := NewQuantityDeclaration().WithMin(min).WithMax(max).WithTolerance(tolerance)
 
+	gotMin, ok := d.Min()
+	if !ok || gotMin.Compare(min) != 0 {
+		t.Fatalf("Min() = (%v, %v), want (%v, true)", gotMin, ok, min)
+	}
 	gotMax, ok := d.Max()
 	if !ok || gotMax.Compare(max) != 0 {
 		t.Fatalf("Max() = (%v, %v), want (%v, true)", gotMax, ok, max)
@@ -117,6 +134,20 @@ func TestQuantityDeclaration_MaxAndTolerance(t *testing.T) {
 	gotTolerance, ok := d.Tolerance()
 	if !ok || gotTolerance.Compare(tolerance) != 0 {
 		t.Fatalf("Tolerance() = (%v, %v), want (%v, true)", gotTolerance, ok, tolerance)
+	}
+}
+
+func TestQuantityDeclaration_ExclusiveMinMax(t *testing.T) {
+	d := NewQuantityDeclaration()
+	if d.ExclusiveMin() || d.ExclusiveMax() {
+		t.Fatal("ExclusiveMin()/ExclusiveMax() before declaration = true, want false")
+	}
+	d = d.WithExclusiveMin().WithExclusiveMax()
+	if !d.ExclusiveMin() {
+		t.Fatal("ExclusiveMin() after WithExclusiveMin = false, want true")
+	}
+	if !d.ExclusiveMax() {
+		t.Fatal("ExclusiveMax() after WithExclusiveMax = false, want true")
 	}
 }
 

@@ -119,6 +119,27 @@ func TestCheckMU01_Vector_08(t *testing.T) {
 	}
 }
 
+func TestCheckMU01_Vector_42(t *testing.T) {
+	// Vector 42: money, minor_units | 100e-2 | FAIL | MU-01 (two decimal
+	// places, no point). decimal.Parse now accepts exponential notation
+	// per SPEC-MU §2.6.1's decimal-text grammar (see decimal.Parse's own
+	// doc comment) -- "100e-2" carries two decimal places, the same as
+	// "1.00", despite containing no literal decimal point.
+	decl := mustScale(t, field.NewMoneyDeclaration(), field.ScaleMinorUnits)
+	in := Input{
+		Field:    "arguments.amount",
+		Value:    mustParse(t, "100e-2"),
+		Registry: mustRegistry(t, decl),
+	}
+	res, err := checkMU01(in)
+	if err != nil {
+		t.Fatalf("checkMU01 unexpected error: %v", err)
+	}
+	if res.Outcome() != verdict.OutcomeFail {
+		t.Errorf("Outcome() = %v, want FAIL", res.Outcome())
+	}
+}
+
 func TestCheckMU01_ScaleMajorUnits_Pass(t *testing.T) {
 	// scale: major_units → PASS at MU-01 (defer to MU-14)
 	decl := mustScale(t, field.NewMoneyDeclaration(), field.ScaleMajorUnits)

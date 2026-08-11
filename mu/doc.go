@@ -1,12 +1,35 @@
-// Package mu implements the seven Class D magnitude/scale checks from
-// SPEC-MU §3: MU-01 scale_declaration_conflict, MU-02 precision_loss,
-// MU-03 currency_mismatch, MU-06 sign_convention, MU-07 range_bound,
-// MU-13 percentage_domain, and MU-14 minor_unit_exponent. Each check is a
-// pure function of a single field's Input; Evaluate dispatches a field to
-// the checks its declared Kind carries, in ascending check-ID order
-// (SPEC-MU §2.4), and returns every check's Result — evaluation does not
-// short-circuit on a FAIL, per §2.4, so all applicable checks always run
-// and all their results are always reported.
+// Package mu implements ten Class D magnitude/scale/unit checks: MU-01
+// scale_declaration_conflict, MU-02 precision_loss, MU-03
+// currency_mismatch (SPEC-MU §3); MU-04 unit_dimension_mismatch and MU-05
+// unit_absent (SPEC-MU §4); MU-06 sign_convention and MU-07 range_bound
+// (SPEC-MU §3); MU-13 percentage_domain (SPEC-MU §3); MU-14
+// minor_unit_exponent (SPEC-MU §3); and MU-15 unit_conversion_overflow
+// (SPEC-MU §4). Each check is a pure function of a single field's Input;
+// Evaluate dispatches a field to the checks its declared Kind carries, in
+// ascending check-ID order (SPEC-MU §2.6), and returns every check's
+// Result — evaluation does not short-circuit on a FAIL, per §2.6, so all
+// applicable checks always run and all their results are always reported.
+//
+// # A known gap: "not applicable" is not yet distinct from INDETERMINATE
+//
+// SPEC-MU §2.5 defines "not applicable" as a state distinct from every
+// evaluated outcome (PASS/FAIL/INDETERMINATE): a check whose *Applies to*
+// gate the field's declaration never satisfies (e.g. MU-05 on a field that
+// never declared unit_required: true) produces no entry in any response
+// array at all, never an INDETERMINATE one -- "a blind-spot report nobody
+// reads is worse than no report at all, because it looks like diligence."
+// This package does not yet implement that distinction: Evaluate's
+// dispatch is a static, kind-keyed list (checksFor), and every check in
+// that list always produces exactly one Result, so a gate the ruleset
+// left unsatisfied is reported as INDETERMINATE, identically to a gate
+// that was satisfied but could not resolve. Every check in this package
+// follows that same, already-established convention (task 1-4 set it for
+// MU-03's target_currency_field gate; this task's MU-05, MU-07, and MU-15
+// additions follow it rather than diverge from already-shipped behaviour
+// mid-package). Building the distinction properly means changing what
+// Evaluate returns for every check in this package at once, not one
+// check's fix -- recorded as a candidate Unresolved Issue rather than
+// attempted piecemeal here.
 //
 // # Purity invariant
 //
@@ -14,7 +37,8 @@
 // wall-clock reads. A verdict is a pure function of the Input and the
 // reference tables supplied to it. Reference tables are injected via
 // Tables, never constructed in a hot path: a caller builds its ISO 4217
-// table once (e.g. alongside a ruleset) and reuses it across evaluations.
+// table and unit registry once (e.g. alongside a ruleset) and reuses them
+// across evaluations.
 //
 // # Result carries no evidence
 //
@@ -32,6 +56,8 @@
 // func(Input) (verdict.Result, error) registered in the dispatch table
 // keyed by field.Kind, implemented in its own file alongside that file's
 // tests: MU-01 (scale.go), MU-02 (precision.go), MU-03 (currency.go),
-// MU-06 (sign.go), MU-07 (range.go), MU-13 (percentage.go), and MU-14
-// (exponent.go).
+// MU-04 (dimension.go), MU-05 (absent.go), MU-06 (sign.go), MU-07
+// (range.go), MU-13 (percentage.go), MU-14 (exponent.go), and MU-15
+// (conversion.go). resolveQuantityUnit (unit.go) is the shared unit
+// resolution helper MU-04, MU-05, MU-07, and MU-15 all consult.
 package mu

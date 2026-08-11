@@ -33,6 +33,21 @@ func mustRegistry(t *testing.T, decl field.Declaration) field.Registry {
 	return r
 }
 
+// stringVals converts a plain path -> string map into Input.Vals' real
+// type, map[string]field.Value, wrapping every entry as a
+// field.NewStringValue. Most of this package's tests only ever need a
+// sibling to resolve to a string (a currency code, a unit, a sign_when
+// comparand), so this is the common case's shorthand; tests exercising
+// MU-06's number/bool/null/non-comparable comparable-shape rules build
+// their Vals map directly instead.
+func stringVals(m map[string]string) map[string]field.Value {
+	out := make(map[string]field.Value, len(m))
+	for k, v := range m {
+		out[k] = field.NewStringValue(v)
+	}
+	return out
+}
+
 // fixedResult builds an OnFunc that always returns the given outcome at the
 // given checkID, for exercising evaluateChecks' aggregation with injected
 // outcomes.
@@ -50,9 +65,9 @@ func TestChecksFor_DispatchTable(t *testing.T) {
 		ok   bool
 	}{
 		{"money", field.KindMoney, []string{"MU-01", "MU-02", "MU-03", "MU-06", "MU-07", "MU-14"}, true},
-		{"decimal", field.KindDecimal, []string{"MU-02"}, true},
-		{"percentage", field.KindPercentage, []string{"MU-13"}, true},
-		{"quantity", field.KindQuantity, []string{"MU-07"}, true},
+		{"decimal", field.KindDecimal, []string{"MU-02", "MU-06", "MU-07"}, true},
+		{"percentage", field.KindPercentage, []string{"MU-07", "MU-13"}, true},
+		{"quantity", field.KindQuantity, []string{"MU-04", "MU-05", "MU-07", "MU-15"}, true},
 		{"unspecified", field.KindUnspecified, nil, false},
 		{"timestamp", field.KindTimestamp, nil, false},
 		{"identifier", field.KindIdentifier, nil, false},
@@ -102,7 +117,7 @@ func TestEvaluate_DispatchPerKind(t *testing.T) {
 	// (money or decimal) being one it applies to at all: with Value's zero
 	// value (exact 0) and Provenance's zero value (FromString), MU-02
 	// evaluates for real and PASSes, since decimal.PrecisionLoss never
-	// fails a FromString value. Evaluate (§2.4: no short-circuiting) must
+	// fails a FromString value. Evaluate (§2.6: no short-circuiting) must
 	// return every applicable check's result, in ascending check-ID order,
 	// not just the first.
 	cases := []struct {
@@ -123,20 +138,20 @@ func TestEvaluate_DispatchPerKind(t *testing.T) {
 		{
 			"decimal",
 			field.NewDecimalDeclaration(),
-			[]string{"MU-02"},
-			[]verdict.Outcome{verdict.OutcomePass},
+			[]string{"MU-02", "MU-06", "MU-07"},
+			[]verdict.Outcome{verdict.OutcomePass, verdict.OutcomeIndeterminate, verdict.OutcomeIndeterminate},
 		},
 		{
 			"percentage",
 			field.NewPercentageDeclaration(),
-			[]string{"MU-13"},
-			[]verdict.Outcome{verdict.OutcomeIndeterminate},
+			[]string{"MU-07", "MU-13"},
+			[]verdict.Outcome{verdict.OutcomeIndeterminate, verdict.OutcomeIndeterminate},
 		},
 		{
 			"quantity",
 			field.NewQuantityDeclaration(),
-			[]string{"MU-07"},
-			[]verdict.Outcome{verdict.OutcomeIndeterminate},
+			[]string{"MU-04", "MU-05", "MU-07", "MU-15"},
+			[]verdict.Outcome{verdict.OutcomeIndeterminate, verdict.OutcomeIndeterminate, verdict.OutcomeIndeterminate, verdict.OutcomeIndeterminate},
 		},
 	}
 	for _, tc := range cases {

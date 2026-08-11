@@ -21,7 +21,7 @@ func usdInput(t *testing.T, tbl tables.CurrencyTable, value, currencyCode string
 		Value:    mustParse(t, value),
 		Registry: mustRegistry(t, decl),
 		Tables:   Tables{ISO4217: tbl},
-		Vals:     map[string]string{"arguments.currency": currencyCode},
+		Vals:     stringVals(map[string]string{"arguments.currency": currencyCode}),
 	}
 }
 
@@ -81,6 +81,32 @@ func TestCheckMU14_NegativeAndZero(t *testing.T) {
 	wantMU14(t, usdInput(t, tbl, "0.00", "USD"), verdict.OutcomePass)
 }
 
+func TestCheckMU14_Vector_101(t *testing.T) {
+	// Vector 101: money, USD (no scale) | 49.999 | INDETERMINATE | MU-14
+	decl := mustCurrencyField(t, field.NewMoneyDeclaration()) // no WithScale
+	in := Input{
+		Field:    "arguments.amount",
+		Value:    mustParse(t, "49.999"),
+		Registry: mustRegistry(t, decl),
+		Vals:     stringVals(map[string]string{"arguments.currency": "USD"}),
+		Tables:   Tables{ISO4217: tables.NewISO4217Table()},
+	}
+	wantMU14(t, in, verdict.OutcomeIndeterminate)
+}
+
+func TestCheckMU14_Vector_102(t *testing.T) {
+	// Vector 102: money, major_units, no currency_field | 49.999 |
+	// INDETERMINATE | MU-14 (no exponent)
+	decl := mustScale(t, field.NewMoneyDeclaration(), field.ScaleMajorUnits) // no WithCurrencyField
+	in := Input{
+		Field:    "arguments.amount",
+		Value:    mustParse(t, "49.999"),
+		Registry: mustRegistry(t, decl),
+		Tables:   Tables{ISO4217: tables.NewISO4217Table()},
+	}
+	wantMU14(t, in, verdict.OutcomeIndeterminate)
+}
+
 func TestCheckMU14_NoDeclaration_Indeterminate(t *testing.T) {
 	in := Input{
 		Field:    "arguments.amount",
@@ -106,7 +132,7 @@ func TestCheckMU14_NoScale_Indeterminate(t *testing.T) {
 		Field:    "arguments.amount",
 		Value:    mustParse(t, "49.99"),
 		Registry: mustRegistry(t, decl),
-		Vals:     map[string]string{"arguments.currency": "USD"},
+		Vals:     stringVals(map[string]string{"arguments.currency": "USD"}),
 		Tables:   Tables{ISO4217: tables.NewISO4217Table()},
 	}
 	wantMU14(t, in, verdict.OutcomeIndeterminate)
@@ -119,7 +145,7 @@ func TestCheckMU14_MinorUnits_Indeterminate(t *testing.T) {
 		Field:    "arguments.amount",
 		Value:    mustParse(t, "4999"),
 		Registry: mustRegistry(t, decl),
-		Vals:     map[string]string{"arguments.currency": "USD"},
+		Vals:     stringVals(map[string]string{"arguments.currency": "USD"}),
 		Tables:   Tables{ISO4217: tables.NewISO4217Table()},
 	}
 	wantMU14(t, in, verdict.OutcomeIndeterminate)
@@ -131,7 +157,7 @@ func TestCheckMU14_NoCurrencyField_Indeterminate(t *testing.T) {
 		Field:    "arguments.amount",
 		Value:    mustParse(t, "49.99"),
 		Registry: mustRegistry(t, decl),
-		Vals:     map[string]string{"arguments.currency": "USD"},
+		Vals:     stringVals(map[string]string{"arguments.currency": "USD"}),
 		Tables:   Tables{ISO4217: tables.NewISO4217Table()},
 	}
 	wantMU14(t, in, verdict.OutcomeIndeterminate)
@@ -178,7 +204,7 @@ func TestCheckMU14_EmptyTables_Indeterminate(t *testing.T) {
 		Field:    "arguments.amount",
 		Value:    mustParse(t, "49.99"),
 		Registry: mustRegistry(t, decl),
-		Vals:     map[string]string{"arguments.currency": "USD"},
+		Vals:     stringVals(map[string]string{"arguments.currency": "USD"}),
 	}
 	wantMU14(t, in, verdict.OutcomeIndeterminate)
 }

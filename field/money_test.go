@@ -49,30 +49,78 @@ func TestSign_String(t *testing.T) {
 	}
 }
 
-func TestNewConditionalSign(t *testing.T) {
-	c, err := NewConditionalSign("arguments.type", "refund", SignNegative)
+// mustWhenEntry builds a WhenEntry on "arguments.type" -- the only
+// sibling path this file's tests ever condition on; a parameter no call
+// site varies is dead flexibility (golangci-lint's unparam agrees; see
+// mustCurrencyField in mu/scale_test.go for the same reasoning).
+func mustWhenEntry(t *testing.T, value Value) WhenEntry {
+	t.Helper()
+	const path = "arguments.type"
+	e, err := NewWhenEntry(path, value)
+	if err != nil {
+		t.Fatalf("NewWhenEntry(%q): unexpected error: %v", path, err)
+	}
+	return e
+}
+
+func TestNewWhenEntry(t *testing.T) {
+	e := mustWhenEntry(t, NewStringValue("refund"))
+	if got := e.Path(); got != "arguments.type" {
+		t.Fatalf("Path() = %q, want %q", got, "arguments.type")
+	}
+	got, ok := e.Value().StringValue()
+	if !ok || got != "refund" {
+		t.Fatalf("Value().StringValue() = (%q, %v), want (%q, true)", got, ok, "refund")
+	}
+}
+
+func TestNewWhenEntry_EmptyPath(t *testing.T) {
+	if _, err := NewWhenEntry("", NewStringValue("refund")); err == nil {
+		t.Fatal("NewWhenEntry with empty path: expected error, got nil")
+	}
+}
+
+func TestConditionalSign_When_DefensiveCopy(t *testing.T) {
+	entry := mustWhenEntry(t, NewStringValue("refund"))
+	c, err := NewConditionalSign([]WhenEntry{entry}, SignNegative)
 	if err != nil {
 		t.Fatalf("NewConditionalSign: unexpected error: %v", err)
 	}
-	if got := c.WhenField(); got != "arguments.type" {
-		t.Fatalf("WhenField() = %q, want %q", got, "arguments.type")
+	got := c.When()
+	got[0] = WhenEntry{}
+	got2 := c.When()
+	if got2[0].Path() != "arguments.type" {
+		t.Fatal("mutating the slice returned by When() affected the ConditionalSign's own state")
 	}
-	if got := c.WhenValue(); got != "refund" {
-		t.Fatalf("WhenValue() = %q, want %q", got, "refund")
+}
+
+func TestNewConditionalSign(t *testing.T) {
+	entry := mustWhenEntry(t, NewStringValue("refund"))
+	c, err := NewConditionalSign([]WhenEntry{entry}, SignNegative)
+	if err != nil {
+		t.Fatalf("NewConditionalSign: unexpected error: %v", err)
+	}
+	when := c.When()
+	if len(when) != 1 || when[0].Path() != "arguments.type" {
+		t.Fatalf("When() = %v, want one entry on arguments.type", when)
 	}
 	if got := c.Sign(); got != SignNegative {
 		t.Fatalf("Sign() = %v, want %v", got, SignNegative)
 	}
 }
 
-func TestNewConditionalSign_EmptyField(t *testing.T) {
-	if _, err := NewConditionalSign("", "refund", SignNegative); err == nil {
-		t.Fatal("NewConditionalSign with empty whenField: expected error, got nil")
+func TestNewConditionalSign_EmptyWhen(t *testing.T) {
+	if _, err := NewConditionalSign(nil, SignNegative); err == nil {
+		t.Fatal("NewConditionalSign with empty when: expected error, got nil")
+	}
+	if _, err := NewConditionalSign([]WhenEntry{}, SignNegative); err == nil {
+		t.Fatal("NewConditionalSign with empty when slice: expected error, got nil")
 	}
 }
 
 func TestNewConditionalSign_InvalidSign(t *testing.T) {
-	if _, err := NewConditionalSign("arguments.type", "refund", Sign(99)); err == nil {
+	entry := mustWhenEntry(t, NewStringValue("refund"))
+	if _, err := NewConditionalSign([]WhenEntry{entry}, Sign(99)); err == nil {
 		t.Fatal("NewConditionalSign with invalid sign: expected error, got nil")
 	}
 }
@@ -224,11 +272,11 @@ func TestMoneyDeclaration_WithSign_Invalid(t *testing.T) {
 }
 
 func TestMoneyDeclaration_WithSignWhen(t *testing.T) {
-	refund, err := NewConditionalSign("arguments.type", "refund", SignNegative)
+	refund, err := NewConditionalSign([]WhenEntry{mustWhenEntry(t, NewStringValue("refund"))}, SignNegative)
 	if err != nil {
 		t.Fatalf("NewConditionalSign: unexpected error: %v", err)
 	}
-	charge, err := NewConditionalSign("arguments.type", "charge", SignPositive)
+	charge, err := NewConditionalSign([]WhenEntry{mustWhenEntry(t, NewStringValue("charge"))}, SignPositive)
 	if err != nil {
 		t.Fatalf("NewConditionalSign: unexpected error: %v", err)
 	}
@@ -244,16 +292,19 @@ func TestMoneyDeclaration_WithSignWhen(t *testing.T) {
 	conds[0] = ConditionalSign{}
 
 	got := d.SignWhen()
-	if len(got) != 2 || got[0] != refund || got[1] != charge {
-		t.Fatalf("SignWhen() = %+v, want [%+v %+v]", got, refund, charge)
+	if len(got) != 2 || got[0].Sign() != SignNegative || got[1].Sign() != SignPositive {
+		t.Fatalf("SignWhen() = %+v, want [refund->negative, charge->positive]", got)
+	}
+	if got[0].When()[0].Path() != "arguments.type" {
+		t.Fatalf("SignWhen()[0].When()[0].Path() = %q, want arguments.type", got[0].When()[0].Path())
 	}
 
 	// Mutating the returned slice must not affect the stored declaration
 	// (defensive copy on the way out).
 	got[0] = ConditionalSign{}
 	again := d.SignWhen()
-	if again[0] != refund {
-		t.Fatalf("SignWhen() after mutating a prior result = %+v, want unchanged %+v", again[0], refund)
+	if again[0].Sign() != SignNegative {
+		t.Fatalf("SignWhen() after mutating a prior result: Sign() = %v, want unchanged %v", again[0].Sign(), SignNegative)
 	}
 }
 

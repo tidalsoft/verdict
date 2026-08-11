@@ -28,10 +28,10 @@ func TestCheckMU07_NoDeclaration_Indeterminate(t *testing.T) {
 }
 
 func TestCheckMU07_QuantityDeclaration_Indeterminate(t *testing.T) {
-	// field.QuantityDeclaration's Max is reserved for MU-15, not this
-	// check's range bound -- there is no min/max to consult here.
+	// No min/max declared at all on this quantity field -- the "Requires
+	// min and/or max" gate every MU-07 branch shares.
 	in := Input{
-		Field:    "arguments.weight",
+		Field:    "arguments.amount",
 		Value:    mustParse(t, "12"),
 		Registry: mustRegistry(t, field.NewQuantityDeclaration()),
 	}
@@ -177,7 +177,7 @@ func TestCheckMU07_MinorUnits_CurrencyFieldSiblingAbsent_Indeterminate(t *testin
 		Field:    "arguments.amount",
 		Value:    mustParse(t, "1000"),
 		Registry: mustRegistry(t, decl),
-		Vals:     map[string]string{},
+		Vals:     stringVals(map[string]string{}),
 	}
 	res, err := checkMU07(in)
 	if err != nil {
@@ -194,7 +194,7 @@ func TestCheckMU07_MinorUnits_CurrencyUnresolvable_Indeterminate(t *testing.T) {
 		Field:    "arguments.amount",
 		Value:    mustParse(t, "1000"),
 		Registry: mustRegistry(t, decl),
-		Vals:     map[string]string{"arguments.currency": "ZZZ"},
+		Vals:     stringVals(map[string]string{"arguments.currency": "ZZZ"}),
 		Tables:   Tables{ISO4217: tables.NewISO4217Table()},
 	}
 	res, err := checkMU07(in)
@@ -214,7 +214,7 @@ func TestCheckMU07_MinorUnits_CurrencyNoExponent_Indeterminate(t *testing.T) {
 		Field:    "arguments.amount",
 		Value:    mustParse(t, "1000"),
 		Registry: mustRegistry(t, decl),
-		Vals:     map[string]string{"arguments.currency": "XAU"},
+		Vals:     stringVals(map[string]string{"arguments.currency": "XAU"}),
 		Tables:   Tables{ISO4217: tables.NewISO4217Table()},
 	}
 	res, err := checkMU07(in)
@@ -235,7 +235,7 @@ func TestCheckMU07_MinorUnits_USD_WorkedExample(t *testing.T) {
 		field.NewMoneyDeclaration().WithMin(mustParse(t, "10")).WithMax(mustParse(t, "100")),
 		field.ScaleMinorUnits))
 	registry := mustRegistry(t, decl)
-	vals := map[string]string{"arguments.currency": "USD"}
+	vals := stringVals(map[string]string{"arguments.currency": "USD"})
 	tbl := Tables{ISO4217: tables.NewISO4217Table()}
 
 	cases := []struct {
@@ -282,7 +282,7 @@ func TestCheckMU07_MinorUnits_ExclusiveBoundary(t *testing.T) {
 		Field:    "arguments.amount",
 		Value:    mustParse(t, "1000"), // exactly $10, the excluded boundary
 		Registry: mustRegistry(t, minDecl),
-		Vals:     map[string]string{"arguments.currency": "USD"},
+		Vals:     stringVals(map[string]string{"arguments.currency": "USD"}),
 		Tables:   Tables{ISO4217: tables.NewISO4217Table()},
 	}
 	res, err := checkMU07(in)
@@ -300,7 +300,7 @@ func TestCheckMU07_MinorUnits_ExclusiveBoundary(t *testing.T) {
 		Field:    "arguments.amount",
 		Value:    mustParse(t, "10000"), // exactly $100, the excluded boundary
 		Registry: mustRegistry(t, maxDecl),
-		Vals:     map[string]string{"arguments.currency": "USD"},
+		Vals:     stringVals(map[string]string{"arguments.currency": "USD"}),
 		Tables:   Tables{ISO4217: tables.NewISO4217Table()},
 	}
 	res2, err := checkMU07(in2)
@@ -320,7 +320,7 @@ func TestCheckMU07_MinorUnits_JPY_ZeroExponent(t *testing.T) {
 		field.NewMoneyDeclaration().WithMin(mustParse(t, "500")),
 		field.ScaleMinorUnits))
 	registry := mustRegistry(t, decl)
-	vals := map[string]string{"arguments.currency": "JPY"}
+	vals := stringVals(map[string]string{"arguments.currency": "JPY"})
 	tbl := Tables{ISO4217: tables.NewISO4217Table()}
 
 	below := Input{Field: "arguments.amount", Value: mustParse(t, "499"), Registry: registry, Vals: vals, Tables: tbl}
@@ -355,7 +355,7 @@ func TestCheckMU07_MinorUnits_BoundScaleOverflow_Indeterminate(t *testing.T) {
 		Field:    "arguments.amount",
 		Value:    mustParse(t, "1"),
 		Registry: mustRegistry(t, decl),
-		Vals:     map[string]string{"arguments.currency": "USD"},
+		Vals:     stringVals(map[string]string{"arguments.currency": "USD"}),
 		Tables:   Tables{ISO4217: tables.NewISO4217Table()},
 	}
 	res, err := checkMU07(in)
@@ -374,7 +374,7 @@ func TestCheckMU07_MinorUnits_MaxBoundScaleOverflow_Indeterminate(t *testing.T) 
 		Field:    "arguments.amount",
 		Value:    mustParse(t, "1"),
 		Registry: mustRegistry(t, decl),
-		Vals:     map[string]string{"arguments.currency": "USD"},
+		Vals:     stringVals(map[string]string{"arguments.currency": "USD"}),
 		Tables:   Tables{ISO4217: tables.NewISO4217Table()},
 	}
 	res, err := checkMU07(in)
@@ -396,7 +396,7 @@ func TestCheckMU07_MinorUnits_EvaluateDoesNotAbortSiblingChecks(t *testing.T) {
 		Field:    "arguments.amount",
 		Value:    mustParse(t, "4999"),
 		Registry: mustRegistry(t, decl),
-		Vals:     map[string]string{"arguments.currency": "USD"},
+		Vals:     stringVals(map[string]string{"arguments.currency": "USD"}),
 		Tables:   Tables{ISO4217: tables.NewISO4217Table()},
 	}
 	results, err := Evaluate(in)
@@ -417,5 +417,439 @@ func TestCheckMU07_MinorUnits_EvaluateDoesNotAbortSiblingChecks(t *testing.T) {
 	}
 	if !sawMU07 {
 		t.Fatal("Evaluate results missing MU-07")
+	}
+}
+
+// ---- MU-07: decimal branch ----
+
+func TestCheckMU07_Decimal_NoBounds_Indeterminate(t *testing.T) {
+	in := Input{
+		Field:    "arguments.amount",
+		Value:    mustParse(t, "5"),
+		Registry: mustRegistry(t, field.NewDecimalDeclaration()),
+	}
+	res, err := checkMU07(in)
+	if err != nil {
+		t.Fatalf("checkMU07 unexpected error: %v", err)
+	}
+	if res.Outcome() != verdict.OutcomeIndeterminate {
+		t.Errorf("Outcome() = %v, want INDETERMINATE", res.Outcome())
+	}
+}
+
+func TestCheckMU07_Vector_68(t *testing.T) {
+	// Vector 68: decimal, max "10", exclusive_max | 10 | FAIL | MU-07
+	// (exclusive bound)
+	decl := field.NewDecimalDeclaration().WithMax(mustParse(t, "10")).WithExclusiveMax()
+	in := Input{
+		Field:    "arguments.amount",
+		Value:    mustParse(t, "10"),
+		Registry: mustRegistry(t, decl),
+	}
+	res, err := checkMU07(in)
+	if err != nil {
+		t.Fatalf("checkMU07 unexpected error: %v", err)
+	}
+	if res.Outcome() != verdict.OutcomeFail {
+		t.Errorf("Outcome() = %v, want FAIL", res.Outcome())
+	}
+}
+
+func TestCheckMU07_Decimal_WithinBounds_Pass(t *testing.T) {
+	decl := field.NewDecimalDeclaration().WithMin(mustParse(t, "0")).WithMax(mustParse(t, "10"))
+	in := Input{
+		Field:    "arguments.amount",
+		Value:    mustParse(t, "5"),
+		Registry: mustRegistry(t, decl),
+	}
+	res, err := checkMU07(in)
+	if err != nil {
+		t.Fatalf("checkMU07 unexpected error: %v", err)
+	}
+	if res.Outcome() != verdict.OutcomePass {
+		t.Errorf("Outcome() = %v, want PASS", res.Outcome())
+	}
+}
+
+// ---- MU-07: percentage branch ----
+
+func TestCheckMU07_Vector_66(t *testing.T) {
+	// Vector 66: percentage, max "0.5" (no domain) | 0.25 | INDETERMINATE
+	// | MU-07
+	decl := field.NewPercentageDeclaration().WithMax(mustParse(t, "0.5"))
+	in := Input{
+		Field:    "arguments.amount",
+		Value:    mustParse(t, "0.25"),
+		Registry: mustRegistry(t, decl),
+	}
+	res, err := checkMU07(in)
+	if err != nil {
+		t.Fatalf("checkMU07 unexpected error: %v", err)
+	}
+	if res.Outcome() != verdict.OutcomeIndeterminate {
+		t.Errorf("Outcome() = %v, want INDETERMINATE", res.Outcome())
+	}
+}
+
+func TestCheckMU07_Percentage_NoBounds_Indeterminate(t *testing.T) {
+	decl, err := field.NewPercentageDeclaration().WithDomain(field.DomainUnitInterval)
+	if err != nil {
+		t.Fatalf("WithDomain unexpected error: %v", err)
+	}
+	in := Input{
+		Field:    "arguments.amount",
+		Value:    mustParse(t, "0.25"),
+		Registry: mustRegistry(t, decl),
+	}
+	res, err := checkMU07(in)
+	if err != nil {
+		t.Fatalf("checkMU07 unexpected error: %v", err)
+	}
+	if res.Outcome() != verdict.OutcomeIndeterminate {
+		t.Errorf("Outcome() = %v, want INDETERMINATE", res.Outcome())
+	}
+}
+
+func TestCheckMU07_Percentage_WithDomain_Pass(t *testing.T) {
+	decl, err := field.NewPercentageDeclaration().WithDomain(field.DomainUnitInterval)
+	if err != nil {
+		t.Fatalf("WithDomain unexpected error: %v", err)
+	}
+	decl = decl.WithMin(mustParse(t, "0")).WithMax(mustParse(t, "1"))
+	in := Input{
+		Field:    "arguments.amount",
+		Value:    mustParse(t, "0.5"),
+		Registry: mustRegistry(t, decl),
+	}
+	res, err := checkMU07(in)
+	if err != nil {
+		t.Fatalf("checkMU07 unexpected error: %v", err)
+	}
+	if res.Outcome() != verdict.OutcomePass {
+		t.Errorf("Outcome() = %v, want PASS", res.Outcome())
+	}
+}
+
+// ---- MU-07: quantity branch ----
+
+func TestCheckMU07_Vector_67(t *testing.T) {
+	// Vector 67: quantity, mass, canonical_unit kg, max "10" | 12 |
+	// INDETERMINATE | MU-07 (value's unit unresolvable)
+	decl := mustCanonicalUnit(t, mustDimension(t, field.NewQuantityDeclaration(), "mass"), "kg").WithMax(mustParse(t, "10"))
+	in := Input{
+		Field:    "arguments.amount",
+		Value:    mustParse(t, "12"),
+		Registry: mustRegistry(t, decl),
+		Tables:   unitTables(),
+	}
+	res, err := checkMU07(in)
+	if err != nil {
+		t.Fatalf("checkMU07 unexpected error: %v", err)
+	}
+	if res.Outcome() != verdict.OutcomeIndeterminate {
+		t.Errorf("Outcome() = %v, want INDETERMINATE", res.Outcome())
+	}
+}
+
+func TestCheckMU07_Vector_84(t *testing.T) {
+	// Vector 84: quantity, mass, canonical_unit kg, max "10" | "50 lb" |
+	// FAIL | MU-07 (22.68 kg exceeds the bound)
+	decl := mustCanonicalUnit(t, mustDimension(t, field.NewQuantityDeclaration(), "mass"), "kg").WithMax(mustParse(t, "10"))
+	in := Input{
+		Field:           "arguments.amount",
+		Value:           mustParse(t, "50"),
+		EmbeddedUnit:    "lb",
+		HasEmbeddedUnit: true,
+		Registry:        mustRegistry(t, decl),
+		Tables:          unitTables(),
+	}
+	res, err := checkMU07(in)
+	if err != nil {
+		t.Fatalf("checkMU07 unexpected error: %v", err)
+	}
+	if res.Outcome() != verdict.OutcomeFail {
+		t.Errorf("Outcome() = %v, want FAIL", res.Outcome())
+	}
+}
+
+func TestCheckMU07_Vector_98(t *testing.T) {
+	// Vector 98: quantity, mass, unit_field, max "10", no canonical_unit |
+	// "12 lb" | INDETERMINATE | MU-07 (bounds have no stated units)
+	decl := mustUnitField(t, mustDimension(t, field.NewQuantityDeclaration(), "mass")).WithMax(mustParse(t, "10"))
+	in := Input{
+		Field:           "arguments.amount",
+		Value:           mustParse(t, "12"),
+		EmbeddedUnit:    "lb",
+		HasEmbeddedUnit: true,
+		Registry:        mustRegistry(t, decl),
+		Tables:          unitTables(),
+	}
+	res, err := checkMU07(in)
+	if err != nil {
+		t.Fatalf("checkMU07 unexpected error: %v", err)
+	}
+	if res.Outcome() != verdict.OutcomeIndeterminate {
+		t.Errorf("Outcome() = %v, want INDETERMINATE", res.Outcome())
+	}
+}
+
+func TestCheckMU07_Vector_105(t *testing.T) {
+	// Vector 105: quantity, mass, canonical_unit kg, unit_field, max "10"
+	// | "12 lb", unit field "kg" | INDETERMINATE | MU-07 (unit_conflict)
+	decl := mustUnitField(t,
+		mustCanonicalUnit(t, mustDimension(t, field.NewQuantityDeclaration(), "mass"), "kg")).WithMax(mustParse(t, "10"))
+	in := Input{
+		Field:           "arguments.amount",
+		Value:           mustParse(t, "12"),
+		EmbeddedUnit:    "lb",
+		HasEmbeddedUnit: true,
+		Registry:        mustRegistry(t, decl),
+		Vals:            map[string]field.Value{"arguments.unit": field.NewStringValue("kg")},
+		Tables:          unitTables(),
+	}
+	res, err := checkMU07(in)
+	if err != nil {
+		t.Fatalf("checkMU07 unexpected error: %v", err)
+	}
+	if res.Outcome() != verdict.OutcomeIndeterminate {
+		t.Errorf("Outcome() = %v, want INDETERMINATE", res.Outcome())
+	}
+}
+
+func TestCheckMU07_Vector_119(t *testing.T) {
+	// Vector 119: quantity, mass, canonical_unit kg, max "10" | "12 m" |
+	// INDETERMINATE | MU-07 (unit recognised, wrong dimension)
+	decl := mustCanonicalUnit(t, mustDimension(t, field.NewQuantityDeclaration(), "mass"), "kg").WithMax(mustParse(t, "10"))
+	in := Input{
+		Field:           "arguments.amount",
+		Value:           mustParse(t, "12"),
+		EmbeddedUnit:    "m",
+		HasEmbeddedUnit: true,
+		Registry:        mustRegistry(t, decl),
+		Tables:          unitTables(),
+	}
+	res, err := checkMU07(in)
+	if err != nil {
+		t.Fatalf("checkMU07 unexpected error: %v", err)
+	}
+	if res.Outcome() != verdict.OutcomeIndeterminate {
+		t.Errorf("Outcome() = %v, want INDETERMINATE", res.Outcome())
+	}
+}
+
+func TestCheckMU07_Quantity_CanonicalUnitNotInRegistry_Indeterminate(t *testing.T) {
+	decl := mustCanonicalUnit(t, mustDimension(t, field.NewQuantityDeclaration(), "mass"), "flurbs").WithMax(mustParse(t, "10"))
+	in := Input{
+		Field:           "arguments.amount",
+		Value:           mustParse(t, "12"),
+		EmbeddedUnit:    "kg",
+		HasEmbeddedUnit: true,
+		Registry:        mustRegistry(t, decl),
+		Tables:          unitTables(),
+	}
+	res, err := checkMU07(in)
+	if err != nil {
+		t.Fatalf("checkMU07 unexpected error: %v", err)
+	}
+	if res.Outcome() != verdict.OutcomeIndeterminate {
+		t.Errorf("Outcome() = %v, want INDETERMINATE", res.Outcome())
+	}
+}
+
+func TestCheckMU07_Quantity_ValueUnitNotInRegistry_Indeterminate(t *testing.T) {
+	decl := mustCanonicalUnit(t, mustDimension(t, field.NewQuantityDeclaration(), "mass"), "kg").WithMax(mustParse(t, "10"))
+	in := Input{
+		Field:           "arguments.amount",
+		Value:           mustParse(t, "12"),
+		EmbeddedUnit:    "flurbs",
+		HasEmbeddedUnit: true,
+		Registry:        mustRegistry(t, decl),
+		Tables:          unitTables(),
+	}
+	res, err := checkMU07(in)
+	if err != nil {
+		t.Fatalf("checkMU07 unexpected error: %v", err)
+	}
+	if res.Outcome() != verdict.OutcomeIndeterminate {
+		t.Errorf("Outcome() = %v, want INDETERMINATE", res.Outcome())
+	}
+}
+
+func TestCheckMU07_Quantity_WithinBounds_Pass(t *testing.T) {
+	decl := mustCanonicalUnit(t, mustDimension(t, field.NewQuantityDeclaration(), "mass"), "kg").
+		WithMin(mustParse(t, "0")).WithMax(mustParse(t, "10"))
+	in := Input{
+		Field:           "arguments.amount",
+		Value:           mustParse(t, "12"),
+		EmbeddedUnit:    "lb",
+		HasEmbeddedUnit: true,
+		Registry:        mustRegistry(t, decl),
+		Tables:          unitTables(),
+	}
+	res, err := checkMU07(in)
+	if err != nil {
+		t.Fatalf("checkMU07 unexpected error: %v", err)
+	}
+	if res.Outcome() != verdict.OutcomePass {
+		t.Errorf("Outcome() = %v, want PASS", res.Outcome())
+	}
+}
+
+// TestCheckMU07_TimestampKind_Indeterminate exercises checkMU07's default
+// switch arm: a declared kind (timestamp) this check does not apply to at
+// all.
+func TestCheckMU07_TimestampKind_Indeterminate(t *testing.T) {
+	in := Input{
+		Field:    "arguments.amount",
+		Value:    mustParse(t, "12"),
+		Registry: mustRegistry(t, field.NewTimestampDeclaration()),
+	}
+	res, err := checkMU07(in)
+	if err != nil {
+		t.Fatalf("checkMU07 unexpected error: %v", err)
+	}
+	if res.Outcome() != verdict.OutcomeIndeterminate {
+		t.Errorf("Outcome() = %v, want INDETERMINATE", res.Outcome())
+	}
+}
+
+// TestCheckMU07_Quantity_ConversionOverflow_Indeterminate exercises
+// checkMU07Quantity's own ToCanonical error branch: a value large enough
+// that converting it into the canonical unit overflows the supported
+// exponent range.
+func TestCheckMU07_Quantity_ConversionOverflow_Indeterminate(t *testing.T) {
+	decl := mustCanonicalUnit(t, mustDimension(t, field.NewQuantityDeclaration(), "temperature"), "K").
+		WithMax(mustParse(t, "10"))
+	in := Input{
+		Field:           "arguments.amount",
+		Value:           mustParse(t, "9e99999"),
+		EmbeddedUnit:    "°C",
+		HasEmbeddedUnit: true,
+		Registry:        mustRegistry(t, decl),
+		Tables:          unitTables(),
+	}
+	res, err := checkMU07(in)
+	if err != nil {
+		t.Fatalf("checkMU07 unexpected error: %v", err)
+	}
+	if res.Outcome() != verdict.OutcomeIndeterminate {
+		t.Errorf("Outcome() = %v, want INDETERMINATE", res.Outcome())
+	}
+}
+
+// ---- MU-07 money branch: explicit vectors 60-65 ----
+
+func TestCheckMU07_Vector_60(t *testing.T) {
+	// Vector 60: money, minor_units, USD, max "100.00" | 5000 | PASS |
+	// MU-07 (bounds in major units)
+	decl := mustCurrencyField(t, mustScale(t, field.NewMoneyDeclaration().WithMax(mustParse(t, "100.00")), field.ScaleMinorUnits))
+	in := Input{
+		Field:    "arguments.amount",
+		Value:    mustParse(t, "5000"),
+		Registry: mustRegistry(t, decl),
+		Vals:     stringVals(map[string]string{"arguments.currency": "USD"}),
+		Tables:   Tables{ISO4217: tables.NewISO4217Table()},
+	}
+	res, err := checkMU07(in)
+	if err != nil {
+		t.Fatalf("checkMU07 unexpected error: %v", err)
+	}
+	if res.Outcome() != verdict.OutcomePass {
+		t.Errorf("Outcome() = %v, want PASS", res.Outcome())
+	}
+}
+
+func TestCheckMU07_Vector_61(t *testing.T) {
+	// Vector 61: money, minor_units, USD, max "100.00" | 10001 | FAIL |
+	// MU-07
+	decl := mustCurrencyField(t, mustScale(t, field.NewMoneyDeclaration().WithMax(mustParse(t, "100.00")), field.ScaleMinorUnits))
+	in := Input{
+		Field:    "arguments.amount",
+		Value:    mustParse(t, "10001"),
+		Registry: mustRegistry(t, decl),
+		Vals:     stringVals(map[string]string{"arguments.currency": "USD"}),
+		Tables:   Tables{ISO4217: tables.NewISO4217Table()},
+	}
+	res, err := checkMU07(in)
+	if err != nil {
+		t.Fatalf("checkMU07 unexpected error: %v", err)
+	}
+	if res.Outcome() != verdict.OutcomeFail {
+		t.Errorf("Outcome() = %v, want FAIL", res.Outcome())
+	}
+}
+
+func TestCheckMU07_Vector_62(t *testing.T) {
+	// Vector 62: money, minor_units, JPY, max "100" | 101 | FAIL | MU-07
+	// (exponent 0) -- catches an implementation that hardcodes exponent 2.
+	decl := mustCurrencyField(t, mustScale(t, field.NewMoneyDeclaration().WithMax(mustParse(t, "100")), field.ScaleMinorUnits))
+	in := Input{
+		Field:    "arguments.amount",
+		Value:    mustParse(t, "101"),
+		Registry: mustRegistry(t, decl),
+		Vals:     stringVals(map[string]string{"arguments.currency": "JPY"}),
+		Tables:   Tables{ISO4217: tables.NewISO4217Table()},
+	}
+	res, err := checkMU07(in)
+	if err != nil {
+		t.Fatalf("checkMU07 unexpected error: %v", err)
+	}
+	if res.Outcome() != verdict.OutcomeFail {
+		t.Errorf("Outcome() = %v, want FAIL", res.Outcome())
+	}
+}
+
+func TestCheckMU07_Vector_63(t *testing.T) {
+	// Vector 63: money, major_units, max "100.00", no currency_field |
+	// 50.00 | PASS | MU-07 (no exponent read)
+	decl := mustScale(t, field.NewMoneyDeclaration().WithMax(mustParse(t, "100.00")), field.ScaleMajorUnits)
+	in := Input{
+		Field:    "arguments.amount",
+		Value:    mustParse(t, "50.00"),
+		Registry: mustRegistry(t, decl),
+		// Deliberately no Vals, no Tables.
+	}
+	res, err := checkMU07(in)
+	if err != nil {
+		t.Fatalf("checkMU07 unexpected error: %v", err)
+	}
+	if res.Outcome() != verdict.OutcomePass {
+		t.Errorf("Outcome() = %v, want PASS", res.Outcome())
+	}
+}
+
+func TestCheckMU07_Vector_64(t *testing.T) {
+	// Vector 64: money, minor_units, max "100.00", no currency_field |
+	// 5000 | INDETERMINATE | MU-07 (currency unresolvable)
+	decl := mustScale(t, field.NewMoneyDeclaration().WithMax(mustParse(t, "100.00")), field.ScaleMinorUnits)
+	in := Input{
+		Field:    "arguments.amount",
+		Value:    mustParse(t, "5000"),
+		Registry: mustRegistry(t, decl),
+	}
+	res, err := checkMU07(in)
+	if err != nil {
+		t.Fatalf("checkMU07 unexpected error: %v", err)
+	}
+	if res.Outcome() != verdict.OutcomeIndeterminate {
+		t.Errorf("Outcome() = %v, want INDETERMINATE", res.Outcome())
+	}
+}
+
+func TestCheckMU07_Vector_65(t *testing.T) {
+	// Vector 65: money (no scale), max "100.00" | 50 | INDETERMINATE |
+	// MU-07
+	decl := field.NewMoneyDeclaration().WithMax(mustParse(t, "100.00"))
+	in := Input{
+		Field:    "arguments.amount",
+		Value:    mustParse(t, "50"),
+		Registry: mustRegistry(t, decl),
+	}
+	res, err := checkMU07(in)
+	if err != nil {
+		t.Fatalf("checkMU07 unexpected error: %v", err)
+	}
+	if res.Outcome() != verdict.OutcomeIndeterminate {
+		t.Errorf("Outcome() = %v, want INDETERMINATE", res.Outcome())
 	}
 }

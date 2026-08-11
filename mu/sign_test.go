@@ -16,14 +16,22 @@ func mustSign(t *testing.T, d field.MoneyDeclaration, s field.Sign) field.MoneyD
 	return out
 }
 
-// mustConditionalSign builds a ConditionalSign keyed on "arguments.type",
-// the only sibling field this file's tests ever condition on -- a
-// parameter no call site varies is dead flexibility (golangci-lint's
-// unparam agrees; see mustCurrencyField in scale_test.go for the same
-// reasoning).
+// mustWhen builds a single-entry when-list on "arguments.type" -- the
+// sibling every money-declaration sign_when test in this file conditions
+// on, unless a test needs a multi-entry clause (built directly with
+// field.NewWhenEntry instead).
+func mustWhen(t *testing.T, whenValue string) []field.WhenEntry {
+	t.Helper()
+	entry, err := field.NewWhenEntry("arguments.type", field.NewStringValue(whenValue))
+	if err != nil {
+		t.Fatalf("NewWhenEntry unexpected error: %v", err)
+	}
+	return []field.WhenEntry{entry}
+}
+
 func mustConditionalSign(t *testing.T, whenValue string, s field.Sign) field.ConditionalSign {
 	t.Helper()
-	c, err := field.NewConditionalSign("arguments.type", whenValue, s)
+	c, err := field.NewConditionalSign(mustWhen(t, whenValue), s)
 	if err != nil {
 		t.Fatalf("NewConditionalSign unexpected error: %v", err)
 	}
@@ -48,7 +56,7 @@ func TestCheckMU06_Vector_30(t *testing.T) {
 		Field:    "arguments.amount",
 		Value:    mustParse(t, "500"),
 		Registry: mustRegistry(t, decl),
-		Vals:     map[string]string{"arguments.type": "refund"},
+		Vals:     stringVals(map[string]string{"arguments.type": "refund"}),
 	}
 	res, err := checkMU06(in)
 	if err != nil {
@@ -78,15 +86,16 @@ func TestCheckMU06_Vector_31(t *testing.T) {
 	}
 }
 
-func TestCheckMU06_SignWhen_ChargeMatches_Pass(t *testing.T) {
+func TestCheckMU06_Vector_79(t *testing.T) {
+	// Vector 79: sign: positive and sign_when refund → negative |
+	// type=charge, amount=500 | PASS | MU-06 (unconditional sign governs)
 	refund := mustConditionalSign(t, "refund", field.SignNegative)
-	charge := mustConditionalSign(t, "charge", field.SignPositive)
-	decl := mustSignWhen(t, field.NewMoneyDeclaration(), []field.ConditionalSign{refund, charge})
+	decl := mustSignWhen(t, mustSign(t, field.NewMoneyDeclaration(), field.SignPositive), []field.ConditionalSign{refund})
 	in := Input{
 		Field:    "arguments.amount",
 		Value:    mustParse(t, "500"),
 		Registry: mustRegistry(t, decl),
-		Vals:     map[string]string{"arguments.type": "charge"},
+		Vals:     stringVals(map[string]string{"arguments.type": "charge"}),
 	}
 	res, err := checkMU06(in)
 	if err != nil {
@@ -97,17 +106,36 @@ func TestCheckMU06_SignWhen_ChargeMatches_Pass(t *testing.T) {
 	}
 }
 
-func TestCheckMU06_SignWhen_NoConditionMatches_Indeterminate(t *testing.T) {
-	// SignWhen declared but the sibling value matches none of its
-	// conditions -- INDETERMINATE, not a fallback to any unconditional
-	// Sign (there isn't one declared here either).
+func TestCheckMU06_Vector_80(t *testing.T) {
+	// Vector 80: sign: positive and sign_when refund → negative |
+	// type=charge, amount=-500 | FAIL | MU-06 (unconditional sign governs)
+	refund := mustConditionalSign(t, "refund", field.SignNegative)
+	decl := mustSignWhen(t, mustSign(t, field.NewMoneyDeclaration(), field.SignPositive), []field.ConditionalSign{refund})
+	in := Input{
+		Field:    "arguments.amount",
+		Value:    mustParse(t, "-500"),
+		Registry: mustRegistry(t, decl),
+		Vals:     stringVals(map[string]string{"arguments.type": "charge"}),
+	}
+	res, err := checkMU06(in)
+	if err != nil {
+		t.Fatalf("checkMU06 unexpected error: %v", err)
+	}
+	if res.Outcome() != verdict.OutcomeFail {
+		t.Errorf("Outcome() = %v, want FAIL", res.Outcome())
+	}
+}
+
+func TestCheckMU06_Vector_81(t *testing.T) {
+	// Vector 81: sign_when refund → negative, arguments.type absent |
+	// amount=500 | INDETERMINATE | MU-06 (when path unresolved)
 	refund := mustConditionalSign(t, "refund", field.SignNegative)
 	decl := mustSignWhen(t, field.NewMoneyDeclaration(), []field.ConditionalSign{refund})
 	in := Input{
 		Field:    "arguments.amount",
 		Value:    mustParse(t, "500"),
 		Registry: mustRegistry(t, decl),
-		Vals:     map[string]string{"arguments.type": "adjustment"},
+		Vals:     map[string]field.Value{},
 	}
 	res, err := checkMU06(in)
 	if err != nil {
@@ -118,16 +146,90 @@ func TestCheckMU06_SignWhen_NoConditionMatches_Indeterminate(t *testing.T) {
 	}
 }
 
-func TestCheckMU06_SignWhen_SiblingAbsent_Indeterminate(t *testing.T) {
-	// The sibling field itself is absent from Vals entirely (comma-ok
-	// miss), not merely holding a non-matching value.
+func TestCheckMU06_Vector_82(t *testing.T) {
+	// Vector 82: sign: positive, nonzero: true | 0 | FAIL | MU-06
+	decl := mustSign(t, field.NewMoneyDeclaration(), field.SignPositive).WithNonzero()
+	in := Input{
+		Field:    "arguments.amount",
+		Value:    mustParse(t, "0"),
+		Registry: mustRegistry(t, decl),
+	}
+	res, err := checkMU06(in)
+	if err != nil {
+		t.Fatalf("checkMU06 unexpected error: %v", err)
+	}
+	if res.Outcome() != verdict.OutcomeFail {
+		t.Errorf("Outcome() = %v, want FAIL", res.Outcome())
+	}
+}
+
+func TestCheckMU06_Vector_91(t *testing.T) {
+	// Vector 91: sign: positive and sign_when { type: refund, category:
+	// fees } → negative | type=charge, category absent, amount=-500 |
+	// FAIL | MU-06 (one contradicted entry rules the clause out)
+	typeEntry, err := field.NewWhenEntry("arguments.type", field.NewStringValue("refund"))
+	if err != nil {
+		t.Fatalf("NewWhenEntry unexpected error: %v", err)
+	}
+	categoryEntry, err := field.NewWhenEntry("arguments.category", field.NewStringValue("fees"))
+	if err != nil {
+		t.Fatalf("NewWhenEntry unexpected error: %v", err)
+	}
+	clause, err := field.NewConditionalSign([]field.WhenEntry{typeEntry, categoryEntry}, field.SignNegative)
+	if err != nil {
+		t.Fatalf("NewConditionalSign unexpected error: %v", err)
+	}
+	decl := mustSignWhen(t, mustSign(t, field.NewMoneyDeclaration(), field.SignPositive), []field.ConditionalSign{clause})
+	in := Input{
+		Field:    "arguments.amount",
+		Value:    mustParse(t, "-500"),
+		Registry: mustRegistry(t, decl),
+		// arguments.category deliberately absent: this entry doesn't
+		// resolve, but arguments.type=charge contradicts the clause's
+		// stated "refund" outright, and that contradiction rules the
+		// clause out regardless.
+		Vals: stringVals(map[string]string{"arguments.type": "charge"}),
+	}
+	res, err := checkMU06(in)
+	if err != nil {
+		t.Fatalf("checkMU06 unexpected error: %v", err)
+	}
+	if res.Outcome() != verdict.OutcomeFail {
+		t.Errorf("Outcome() = %v, want FAIL", res.Outcome())
+	}
+}
+
+func TestCheckMU06_Vector_92(t *testing.T) {
+	// Vector 92: sign: positive and sign_when refund → negative |
+	// type=null, amount=-500 | FAIL | MU-06 (an explicit null resolves)
+	refund := mustConditionalSign(t, "refund", field.SignNegative)
+	decl := mustSignWhen(t, mustSign(t, field.NewMoneyDeclaration(), field.SignPositive), []field.ConditionalSign{refund})
+	in := Input{
+		Field:    "arguments.amount",
+		Value:    mustParse(t, "-500"),
+		Registry: mustRegistry(t, decl),
+		Vals:     map[string]field.Value{"arguments.type": field.NewNullValue()},
+	}
+	res, err := checkMU06(in)
+	if err != nil {
+		t.Fatalf("checkMU06 unexpected error: %v", err)
+	}
+	if res.Outcome() != verdict.OutcomeFail {
+		t.Errorf("Outcome() = %v, want FAIL", res.Outcome())
+	}
+}
+
+func TestCheckMU06_Vector_104(t *testing.T) {
+	// Vector 104: sign_when refund → negative, no unconditional sign |
+	// type=charge, amount=500 | INDETERMINATE | MU-06 (no clause matches,
+	// no fallback)
 	refund := mustConditionalSign(t, "refund", field.SignNegative)
 	decl := mustSignWhen(t, field.NewMoneyDeclaration(), []field.ConditionalSign{refund})
 	in := Input{
 		Field:    "arguments.amount",
 		Value:    mustParse(t, "500"),
 		Registry: mustRegistry(t, decl),
-		Vals:     map[string]string{},
+		Vals:     stringVals(map[string]string{"arguments.type": "charge"}),
 	}
 	res, err := checkMU06(in)
 	if err != nil {
@@ -138,11 +240,144 @@ func TestCheckMU06_SignWhen_SiblingAbsent_Indeterminate(t *testing.T) {
 	}
 }
 
-func TestCheckMU06_SignWhen_TakesPrecedenceOverSign(t *testing.T) {
-	// Both an unconditional Sign and SignWhen are declared. SignWhen is
-	// authoritative once declared at all (see checkMU06's doc comment): a
-	// matching condition wins even though it contradicts the unconditional
-	// Sign.
+func TestCheckMU06_Vector_113(t *testing.T) {
+	// Vector 113: sign: positive and sign_when refund → negative,
+	// arguments.type absent | amount=500 | INDETERMINATE | MU-06 (rule 2
+	// precedes the unconditional sign fallback)
+	refund := mustConditionalSign(t, "refund", field.SignNegative)
+	decl := mustSignWhen(t, mustSign(t, field.NewMoneyDeclaration(), field.SignPositive), []field.ConditionalSign{refund})
+	in := Input{
+		Field:    "arguments.amount",
+		Value:    mustParse(t, "500"),
+		Registry: mustRegistry(t, decl),
+		Vals:     map[string]field.Value{},
+	}
+	res, err := checkMU06(in)
+	if err != nil {
+		t.Fatalf("checkMU06 unexpected error: %v", err)
+	}
+	if res.Outcome() != verdict.OutcomeIndeterminate {
+		t.Errorf("Outcome() = %v, want INDETERMINATE", res.Outcome())
+	}
+}
+
+func TestCheckMU06_Vector_116(t *testing.T) {
+	// Vector 116: sign: any | -500 | PASS | MU-06 (any establishes a sign
+	// nothing violates)
+	decl := mustSign(t, field.NewMoneyDeclaration(), field.SignAny)
+	in := Input{
+		Field:    "arguments.amount",
+		Value:    mustParse(t, "-500"),
+		Registry: mustRegistry(t, decl),
+	}
+	res, err := checkMU06(in)
+	if err != nil {
+		t.Fatalf("checkMU06 unexpected error: %v", err)
+	}
+	if res.Outcome() != verdict.OutcomePass {
+		t.Errorf("Outcome() = %v, want PASS", res.Outcome())
+	}
+}
+
+func TestCheckMU06_Vector_117(t *testing.T) {
+	// Vector 117: sign: any, nonzero: true | 0 | FAIL | MU-06 (any with
+	// nonzero still rejects zero)
+	decl := mustSign(t, field.NewMoneyDeclaration(), field.SignAny).WithNonzero()
+	in := Input{
+		Field:    "arguments.amount",
+		Value:    mustParse(t, "0"),
+		Registry: mustRegistry(t, decl),
+	}
+	res, err := checkMU06(in)
+	if err != nil {
+		t.Fatalf("checkMU06 unexpected error: %v", err)
+	}
+	if res.Outcome() != verdict.OutcomeFail {
+		t.Errorf("Outcome() = %v, want FAIL", res.Outcome())
+	}
+}
+
+func TestCheckMU06_Vector_118(t *testing.T) {
+	// Vector 118: sign: positive and sign_when { arguments.metadata:
+	// "premium" } → negative | arguments.metadata: {tier: "gold"},
+	// amount=500 | INDETERMINATE | MU-06 (when path resolves to a JSON
+	// object, not a comparable shape)
+	entry, err := field.NewWhenEntry("arguments.metadata", field.NewStringValue("premium"))
+	if err != nil {
+		t.Fatalf("NewWhenEntry unexpected error: %v", err)
+	}
+	clause, err := field.NewConditionalSign([]field.WhenEntry{entry}, field.SignNegative)
+	if err != nil {
+		t.Fatalf("NewConditionalSign unexpected error: %v", err)
+	}
+	decl := mustSignWhen(t, mustSign(t, field.NewMoneyDeclaration(), field.SignPositive), []field.ConditionalSign{clause})
+	in := Input{
+		Field:    "arguments.amount",
+		Value:    mustParse(t, "500"),
+		Registry: mustRegistry(t, decl),
+		Vals:     map[string]field.Value{"arguments.metadata": field.NewNonComparableValue()},
+	}
+	res, err := checkMU06(in)
+	if err != nil {
+		t.Fatalf("checkMU06 unexpected error: %v", err)
+	}
+	if res.Outcome() != verdict.OutcomeIndeterminate {
+		t.Errorf("Outcome() = %v, want INDETERMINATE", res.Outcome())
+	}
+}
+
+func TestCheckMU06_Vector_122(t *testing.T) {
+	// Vector 122: sign: positive and sign_when { arguments.type: ["refund"]
+	// } → negative | type="refund", amount=500 | INDETERMINATE | MU-06
+	// (stated value is a JSON array, not a comparable shape)
+	entry, err := field.NewWhenEntry("arguments.type", field.NewNonComparableValue())
+	if err != nil {
+		t.Fatalf("NewWhenEntry unexpected error: %v", err)
+	}
+	clause, err := field.NewConditionalSign([]field.WhenEntry{entry}, field.SignNegative)
+	if err != nil {
+		t.Fatalf("NewConditionalSign unexpected error: %v", err)
+	}
+	decl := mustSignWhen(t, mustSign(t, field.NewMoneyDeclaration(), field.SignPositive), []field.ConditionalSign{clause})
+	in := Input{
+		Field:    "arguments.amount",
+		Value:    mustParse(t, "500"),
+		Registry: mustRegistry(t, decl),
+		Vals:     map[string]field.Value{"arguments.type": field.NewStringValue("refund")},
+	}
+	res, err := checkMU06(in)
+	if err != nil {
+		t.Fatalf("checkMU06 unexpected error: %v", err)
+	}
+	if res.Outcome() != verdict.OutcomeIndeterminate {
+		t.Errorf("Outcome() = %v, want INDETERMINATE", res.Outcome())
+	}
+}
+
+func TestCheckMU06_SignWhen_ChargeMatches_Pass(t *testing.T) {
+	refund := mustConditionalSign(t, "refund", field.SignNegative)
+	charge := mustConditionalSign(t, "charge", field.SignPositive)
+	decl := mustSignWhen(t, field.NewMoneyDeclaration(), []field.ConditionalSign{refund, charge})
+	in := Input{
+		Field:    "arguments.amount",
+		Value:    mustParse(t, "500"),
+		Registry: mustRegistry(t, decl),
+		Vals:     stringVals(map[string]string{"arguments.type": "charge"}),
+	}
+	res, err := checkMU06(in)
+	if err != nil {
+		t.Fatalf("checkMU06 unexpected error: %v", err)
+	}
+	if res.Outcome() != verdict.OutcomePass {
+		t.Errorf("Outcome() = %v, want PASS", res.Outcome())
+	}
+}
+
+func TestCheckMU06_SignWhen_MatchingClauseGovernsOverFallback(t *testing.T) {
+	// Both an unconditional Sign and a genuinely matching SignWhen clause
+	// are present. Rule 1 (a matching clause governs) has priority over
+	// rule 3 (the unconditional fallback), even though the fallback would
+	// have said something different.
 	decl := mustSign(t, field.NewMoneyDeclaration(), field.SignPositive)
 	refund := mustConditionalSign(t, "refund", field.SignNegative)
 	decl = mustSignWhen(t, decl, []field.ConditionalSign{refund})
@@ -150,14 +385,14 @@ func TestCheckMU06_SignWhen_TakesPrecedenceOverSign(t *testing.T) {
 		Field:    "arguments.amount",
 		Value:    mustParse(t, "500"),
 		Registry: mustRegistry(t, decl),
-		Vals:     map[string]string{"arguments.type": "refund"},
+		Vals:     stringVals(map[string]string{"arguments.type": "refund"}),
 	}
 	res, err := checkMU06(in)
 	if err != nil {
 		t.Fatalf("checkMU06 unexpected error: %v", err)
 	}
-	// Positive 500 violates the sign_when-resolved requirement (negative),
-	// even though it would satisfy the unconditional Sign (positive).
+	// Positive 500 violates the matching clause's sign (negative), even
+	// though it would satisfy the unconditional Sign (positive).
 	if res.Outcome() != verdict.OutcomeFail {
 		t.Errorf("Outcome() = %v, want FAIL", res.Outcome())
 	}
@@ -275,10 +510,13 @@ func TestCheckMU06_NoDeclaration_Indeterminate(t *testing.T) {
 }
 
 func TestCheckMU06_WrongKind_Indeterminate(t *testing.T) {
+	// percentage carries no Sign/SignWhen/Nonzero at all, so it does not
+	// satisfy signDeclaration -- unlike decimal, which now does (SPEC-MU
+	// §2.5.1's trigger matrix applies MU-06 to both money and decimal).
 	in := Input{
 		Field:    "arguments.amount",
 		Value:    mustParse(t, "-500"),
-		Registry: mustRegistry(t, field.NewDecimalDeclaration()),
+		Registry: mustRegistry(t, field.NewPercentageDeclaration()),
 	}
 	res, err := checkMU06(in)
 	if err != nil {
@@ -286,5 +524,40 @@ func TestCheckMU06_WrongKind_Indeterminate(t *testing.T) {
 	}
 	if res.Outcome() != verdict.OutcomeIndeterminate {
 		t.Errorf("Outcome() = %v, want INDETERMINATE", res.Outcome())
+	}
+}
+
+// TestCheckMU06_DecimalKind_Applies confirms MU-06 now evaluates a
+// `kind: decimal` field exactly as it does money, per SPEC-MU §2.5.1's
+// trigger matrix.
+func TestCheckMU06_DecimalKind_Applies(t *testing.T) {
+	decl, err := field.NewDecimalDeclaration().WithSign(field.SignPositive)
+	if err != nil {
+		t.Fatalf("WithSign unexpected error: %v", err)
+	}
+	in := Input{
+		Field:    "arguments.amount",
+		Value:    mustParse(t, "-500"),
+		Registry: mustRegistry(t, decl),
+	}
+	res, err := checkMU06(in)
+	if err != nil {
+		t.Fatalf("checkMU06 unexpected error: %v", err)
+	}
+	if res.Outcome() != verdict.OutcomeFail {
+		t.Errorf("Outcome() = %v, want FAIL", res.Outcome())
+	}
+}
+
+func TestClauseState_EmptyEntries_Matches(t *testing.T) {
+	// A clause with an empty when list matches every request -- SPEC-MU
+	// §3: "a clause with an empty when map matches every request, which is
+	// a pointless way to write an unconditional sign." field.
+	// NewConditionalSign itself refuses to construct one (see
+	// money_test.go), so this drives clauseState directly with a nil/empty
+	// entries slice to exercise the branch clauseState alone can still
+	// reach.
+	if got := clauseState(nil, map[string]field.Value{}); got != clauseMatches {
+		t.Errorf("clauseState(nil, {}) = %v, want clauseMatches", got)
 	}
 }
