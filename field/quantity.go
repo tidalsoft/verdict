@@ -28,7 +28,7 @@ import (
 // MU-05/MU-07/MU-15 (mu package) decide whether a declared CanonicalUnit
 // or a request's own unit resolves to anything.
 //
-// # U-25: Min/Max is MU-07's general bound, not MU-15's overflow check
+// # Min/Max is MU-07's general bound, not MU-15's overflow check
 //
 // An earlier version of this type carried a single `max`/`hasMax` pair
 // documented as "MU-15's overflow check" -- but SPEC-MU §4 MU-15
@@ -99,7 +99,7 @@ func (d QuantityDeclaration) UnitRequired() bool { return d.unitRequired }
 
 // Min returns the declared inclusive-unless-ExclusiveMin lower bound, if
 // any (MU-07), expressed in the field's declared CanonicalUnit -- see the
-// U-25 note on this type's doc comment.
+// Min/Max note on this type's doc comment.
 func (d QuantityDeclaration) Min() (decimal.Decimal, bool) { return d.min, d.hasMin }
 
 // Max returns the declared inclusive-unless-ExclusiveMax upper bound, if

@@ -33,7 +33,7 @@
 //
 // verdict.Result deliberately carries only checkID/class/severity/outcome —
 // no evidence, no reason string, no field path. Response serialization is
-// the importer's concern (gatepost), not this package's; a downstream
+// the importing service's concern, not this package's; a downstream
 // assembler keeps its own richer per-check record.
 //
 // # API surface

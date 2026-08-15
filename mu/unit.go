@@ -25,8 +25,7 @@ type quantityUnit struct {
 // different units" is one rule with one behaviour everywhere it applies,
 // never reimplemented per check with a chance to disagree at the edges
 // (this file exists because of exactly that hazard -- see its callers'
-// own doc comments for the consumer trace this package's task record
-// requires).
+// own doc comments for the consumer trace).
 //
 // SPEC-MU §2.6.1: "Where a value decomposes to a unit part and unit_field
 // also resolves to a unit, and the two are not the same unit, the field's

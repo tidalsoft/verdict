@@ -1,6 +1,6 @@
 # This module is a pure library with no binaries, so there is no /bin or
-# /dist to ignore -- see gatepost's .gitignore for the equivalent when this
-# module had a cmd/ carve-out.
+# /dist to ignore. A consumer that builds commands against it needs those
+# entries in its own .gitignore, not here.
 
 # Coverage output (make cover). Scoped to the coverage/ directory rather
 # than a bare *.out / *.prof glob, so that any future testdata/*.out golden

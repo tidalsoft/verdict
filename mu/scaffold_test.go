@@ -194,8 +194,9 @@ func TestEvaluate_DispatchPerKind(t *testing.T) {
 	}
 }
 
-// TestOrdinaryRuleset_NotDenyUnderStrict is the regression this task exists
-// for, covering all four kinds this package carries gated checks for. Each
+// TestOrdinaryRuleset_NotDenyUnderStrict guards against an ordinary ruleset
+// evaluating to deny under strict mode, covering all four kinds this package
+// carries gated checks for. Each
 // case declares a field with everything a real check actually requires --
 // scale/currency/sign for money, sign for decimal, domain for percentage,
 // dimension and a resolvable unit for quantity -- but deliberately nothing

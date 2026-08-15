@@ -92,9 +92,10 @@ clean:
 	rm -rf $(COVER_DIR)
 
 # --- Release discipline ------------------------------------------------
-# gatepost/PLAN.md "Verdict release discipline": go.mod must require a
-# published verdict tag, never a replace directive (U-3). These targets
-# enforce that workflow — release-check validates preconditions, release-
+# A consumer's go.mod must require a published verdict tag, never a replace
+# directive: a replace makes one machine's checkout layout part of the build
+# and hides whether the tag anyone else resolves is even buildable. These
+# targets enforce that workflow — release-check validates preconditions, release-
 # bump updates the const, release runs the full ceremony.
 # -----------------------------------------------------------------------
 

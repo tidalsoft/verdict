@@ -185,7 +185,7 @@ func notApplicable() (verdict.Result, bool, error) {
 // verdict.ComputeAggregate documents that an empty result slice reads as
 // VerdictAllow -- exactly the outcome invariant 1 (INDETERMINATE never
 // collapses to PASS, and here nothing ran at all) exists to prevent. This
-// function will be edited again in T3/T4/T5 as new kinds and checks are
+// function will be edited again as new kinds and checks are
 // added to the switch; deriving ok structurally means a future case with
 // a wrong or forgotten check list can produce a wrong check list, but it
 // cannot produce this specific hazard.
@@ -197,8 +197,7 @@ func checksFor(kind field.Kind) ([]OnFunc, bool) {
 	case field.KindDecimal:
 		// SPEC-MU §2.5.1's trigger matrix lists MU-06 (sign_convention) and
 		// MU-07 (range_bound) as applying to `decimal` exactly as to
-		// `money` -- alongside MU-02, which the earlier task-1-4 dispatch
-		// already carried.
+		// `money` -- alongside MU-02, which this dispatch already carried.
 		checks = []OnFunc{checkMU02, checkMU06, checkMU07}
 	case field.KindPercentage:
 		// MU-07 also applies to `percentage` (bounds in the declared
