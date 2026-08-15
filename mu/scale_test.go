@@ -65,8 +65,8 @@ func wantMU01(t *testing.T, in Input, want verdict.Outcome) {
 	}
 }
 
-func TestCheckMU01_Vector_01(t *testing.T) {
-	// Vector 1: money, minor_units | 4999 | PASS | MU-01
+func TestCheckMU01_MU_V1(t *testing.T) {
+	// MU-V1: money, minor_units | 4999 | PASS | MU-01
 	decl := mustScale(t, field.NewMoneyDeclaration(), field.ScaleMinorUnits)
 	in := Input{
 		Field:    "arguments.amount",
@@ -76,8 +76,8 @@ func TestCheckMU01_Vector_01(t *testing.T) {
 	wantMU01(t, in, verdict.OutcomePass)
 }
 
-func TestCheckMU01_Vector_02(t *testing.T) {
-	// Vector 2: money, minor_units | 49.99 | FAIL | MU-01
+func TestCheckMU01_MU_V2(t *testing.T) {
+	// MU-V2: money, minor_units | 49.99 | FAIL | MU-01
 	decl := mustScale(t, field.NewMoneyDeclaration(), field.ScaleMinorUnits)
 	in := Input{
 		Field:    "arguments.amount",
@@ -87,8 +87,8 @@ func TestCheckMU01_Vector_02(t *testing.T) {
 	wantMU01(t, in, verdict.OutcomeFail)
 }
 
-func TestCheckMU01_Vector_03(t *testing.T) {
-	// Vector 3: money, minor_units | 49.00 | FAIL | MU-01 (type contradicts declaration)
+func TestCheckMU01_MU_V3(t *testing.T) {
+	// MU-V3: money, minor_units | 49.00 | FAIL | MU-01 (type contradicts declaration)
 	decl := mustScale(t, field.NewMoneyDeclaration(), field.ScaleMinorUnits)
 	in := Input{
 		Field:    "arguments.amount",
@@ -98,8 +98,8 @@ func TestCheckMU01_Vector_03(t *testing.T) {
 	wantMU01(t, in, verdict.OutcomeFail)
 }
 
-func TestCheckMU01_Vector_08(t *testing.T) {
-	// Vector 8: money (no scale) | 4999 | INDETERMINATE | MU-01
+func TestCheckMU01_MU_V8(t *testing.T) {
+	// MU-V8: money (no scale) | 4999 | INDETERMINATE | MU-01
 	decl := field.NewMoneyDeclaration() // no WithScale
 	in := Input{
 		Field:    "arguments.amount",
@@ -109,8 +109,8 @@ func TestCheckMU01_Vector_08(t *testing.T) {
 	wantMU01(t, in, verdict.OutcomeIndeterminate)
 }
 
-func TestCheckMU01_Vector_42(t *testing.T) {
-	// Vector 42: money, minor_units | 100e-2 | FAIL | MU-01 (two decimal
+func TestCheckMU01_MU_V42(t *testing.T) {
+	// MU-V42: money, minor_units | 100e-2 | FAIL | MU-01 (two decimal
 	// places, no point). decimal.Parse now accepts exponential notation
 	// per SPEC-MU §2.6.1's decimal-text grammar (see decimal.Parse's own
 	// doc comment) -- "100e-2" carries two decimal places, the same as
@@ -276,8 +276,8 @@ func TestCheckMU01_WrongKind_NotApplicable(t *testing.T) {
 	}
 }
 
-func TestCheckMU01_Vector_43(t *testing.T) {
-	// Vector 43: money, minor_units | "1,234" (not coercible) |
+func TestCheckMU01_MU_V43(t *testing.T) {
+	// MU-V43: money, minor_units | "1,234" (not coercible) |
 	// INDETERMINATE | MU-01 (value_not_coercible). MU-01 is value-dependent
 	// (§2.6.3's table), so a value the coercion gate could not read is
 	// reported INDETERMINATE without ever consulting DecimalPlaces() --

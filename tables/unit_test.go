@@ -309,7 +309,7 @@ func TestUnit_Temperature_Fahrenheit(t *testing.T) {
 	reg := NewUnitRegistry()
 	f, _ := reg.Lookup("°F")
 
-	// 50 °F -> 283.15 K, vector 26's worked example.
+	// 50 °F -> 283.15 K, MU-V26's worked example.
 	got, err := f.ToCanonical(mustDecimal("50"))
 	if err != nil {
 		t.Fatalf("ToCanonical unexpected error: %v", err)
@@ -321,10 +321,10 @@ func TestUnit_Temperature_Fahrenheit(t *testing.T) {
 }
 
 func TestUnit_Temperature_Fahrenheit_DoesNotRoundTripExactly(t *testing.T) {
-	// SPEC-MU §4 MU-15, vector 97: 100 °F does not round-trip exactly,
+	// SPEC-MU §4 MU-15, MU-V97: 100 °F does not round-trip exactly,
 	// because the forward conversion uses a truncated decimal
 	// approximation of 5/9. This is the registry-level fact that makes
-	// vector 97 possible; mu.checkMU15's own test proves the check
+	// MU-V97 possible; mu.checkMU15's own test proves the check
 	// produces FAIL from it.
 	reg := NewUnitRegistry()
 	f, _ := reg.Lookup("°F")

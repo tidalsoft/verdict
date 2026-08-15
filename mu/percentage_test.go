@@ -46,8 +46,8 @@ func wantMU13(t *testing.T, in Input, want verdict.Outcome, wantSeverity verdict
 	}
 }
 
-func TestCheckMU13_Vector_27(t *testing.T) {
-	// Vector 27: percentage, unit_interval | 50 | FAIL | MU-13
+func TestCheckMU13_MU_V27(t *testing.T) {
+	// MU-V27: percentage, unit_interval | 50 | FAIL | MU-13
 	decl := mustDomain(t, field.NewPercentageDeclaration(), field.DomainUnitInterval)
 	in := Input{
 		Field:    "arguments.amount",
@@ -57,8 +57,8 @@ func TestCheckMU13_Vector_27(t *testing.T) {
 	wantMU13(t, in, verdict.OutcomeFail, verdict.SeverityBlock)
 }
 
-func TestCheckMU13_Vector_28(t *testing.T) {
-	// Vector 28: percentage, unit_interval | 0.5 | PASS | MU-13
+func TestCheckMU13_MU_V28(t *testing.T) {
+	// MU-V28: percentage, unit_interval | 0.5 | PASS | MU-13
 	decl := mustDomain(t, field.NewPercentageDeclaration(), field.DomainUnitInterval)
 	in := Input{
 		Field:    "arguments.amount",
@@ -68,8 +68,8 @@ func TestCheckMU13_Vector_28(t *testing.T) {
 	wantMU13(t, in, verdict.OutcomePass, verdict.SeverityBlock)
 }
 
-func TestCheckMU13_Vector_29(t *testing.T) {
-	// Vector 29: percentage, hundred | 0.5 | FAIL @ warn | MU-13 (asymmetric)
+func TestCheckMU13_MU_V29(t *testing.T) {
+	// MU-V29: percentage, hundred | 0.5 | FAIL @ warn | MU-13 (asymmetric)
 	decl := mustDomain(t, field.NewPercentageDeclaration(), field.DomainHundred)
 	in := Input{
 		Field:    "arguments.amount",
@@ -79,8 +79,8 @@ func TestCheckMU13_Vector_29(t *testing.T) {
 	wantMU13(t, in, verdict.OutcomeFail, verdict.SeverityWarn)
 }
 
-func TestCheckMU13_Vector_75(t *testing.T) {
-	// Vector 75: percentage, unit_interval | -50 | FAIL | MU-13
+func TestCheckMU13_MU_V75(t *testing.T) {
+	// MU-V75: percentage, unit_interval | -50 | FAIL | MU-13
 	// (magnitude above the domain)
 	decl := mustDomain(t, field.NewPercentageDeclaration(), field.DomainUnitInterval)
 	in := Input{
@@ -91,8 +91,8 @@ func TestCheckMU13_Vector_75(t *testing.T) {
 	wantMU13(t, in, verdict.OutcomeFail, verdict.SeverityBlock)
 }
 
-func TestCheckMU13_Vector_76(t *testing.T) {
-	// Vector 76: percentage, unit_interval | -0.5 | PASS | MU-13 (a signed
+func TestCheckMU13_MU_V76(t *testing.T) {
+	// MU-V76: percentage, unit_interval | -0.5 | PASS | MU-13 (a signed
 	// rate; sign is not this check's)
 	decl := mustDomain(t, field.NewPercentageDeclaration(), field.DomainUnitInterval)
 	in := Input{
@@ -103,8 +103,8 @@ func TestCheckMU13_Vector_76(t *testing.T) {
 	wantMU13(t, in, verdict.OutcomePass, verdict.SeverityBlock)
 }
 
-func TestCheckMU13_Vector_77(t *testing.T) {
-	// Vector 77: percentage, hundred | 250 | PASS | MU-13 (no upper bound)
+func TestCheckMU13_MU_V77(t *testing.T) {
+	// MU-V77: percentage, hundred | 250 | PASS | MU-13 (no upper bound)
 	decl := mustDomain(t, field.NewPercentageDeclaration(), field.DomainHundred)
 	in := Input{
 		Field:    "arguments.amount",
@@ -114,8 +114,8 @@ func TestCheckMU13_Vector_77(t *testing.T) {
 	wantMU13(t, in, verdict.OutcomePass, verdict.SeverityBlock)
 }
 
-func TestCheckMU13_Vector_78(t *testing.T) {
-	// Vector 78: percentage (no domain) | 0.5 | INDETERMINATE | MU-13
+func TestCheckMU13_MU_V78(t *testing.T) {
+	// MU-V78: percentage (no domain) | 0.5 | INDETERMINATE | MU-13
 	in := Input{
 		Field:    "arguments.amount",
 		Value:    mustParse(t, "0.5"),
@@ -124,8 +124,8 @@ func TestCheckMU13_Vector_78(t *testing.T) {
 	wantMU13(t, in, verdict.OutcomeIndeterminate, verdict.SeverityBlock)
 }
 
-func TestCheckMU13_Vector_94(t *testing.T) {
-	// Vector 94: percentage, hundred | -0.5 | FAIL @ warn | MU-13
+func TestCheckMU13_MU_V94(t *testing.T) {
+	// MU-V94: percentage, hundred | -0.5 | FAIL @ warn | MU-13
 	// (magnitude in the ambiguous band)
 	decl := mustDomain(t, field.NewPercentageDeclaration(), field.DomainHundred)
 	in := Input{

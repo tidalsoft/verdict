@@ -73,8 +73,8 @@ func wantMU06(t *testing.T, in Input, want verdict.Outcome) {
 	}
 }
 
-func TestCheckMU06_Vector_30(t *testing.T) {
-	// Vector 30: sign_when refund → negative | type=refund, amount=500 | FAIL | MU-06
+func TestCheckMU06_MU_V30(t *testing.T) {
+	// MU-V30: sign_when refund → negative | type=refund, amount=500 | FAIL | MU-06
 	refund := mustConditionalSign(t, "refund", field.SignNegative)
 	charge := mustConditionalSign(t, "charge", field.SignPositive)
 	decl := mustSignWhen(t, field.NewMoneyDeclaration(), []field.ConditionalSign{refund, charge})
@@ -87,8 +87,8 @@ func TestCheckMU06_Vector_30(t *testing.T) {
 	wantMU06(t, in, verdict.OutcomeFail)
 }
 
-func TestCheckMU06_Vector_31(t *testing.T) {
-	// Vector 31: no sign declaration | amount=-500 | INDETERMINATE | MU-06
+func TestCheckMU06_MU_V31(t *testing.T) {
+	// MU-V31: no sign declaration | amount=-500 | INDETERMINATE | MU-06
 	in := Input{
 		Field:    "arguments.amount",
 		Value:    mustParse(t, "-500"),
@@ -97,8 +97,8 @@ func TestCheckMU06_Vector_31(t *testing.T) {
 	wantMU06(t, in, verdict.OutcomeIndeterminate)
 }
 
-func TestCheckMU06_Vector_79(t *testing.T) {
-	// Vector 79: sign: positive and sign_when refund → negative |
+func TestCheckMU06_MU_V79(t *testing.T) {
+	// MU-V79: sign: positive and sign_when refund → negative |
 	// type=charge, amount=500 | PASS | MU-06 (unconditional sign governs)
 	refund := mustConditionalSign(t, "refund", field.SignNegative)
 	decl := mustSignWhen(t, mustSign(t, field.NewMoneyDeclaration(), field.SignPositive), []field.ConditionalSign{refund})
@@ -111,8 +111,8 @@ func TestCheckMU06_Vector_79(t *testing.T) {
 	wantMU06(t, in, verdict.OutcomePass)
 }
 
-func TestCheckMU06_Vector_80(t *testing.T) {
-	// Vector 80: sign: positive and sign_when refund → negative |
+func TestCheckMU06_MU_V80(t *testing.T) {
+	// MU-V80: sign: positive and sign_when refund → negative |
 	// type=charge, amount=-500 | FAIL | MU-06 (unconditional sign governs)
 	refund := mustConditionalSign(t, "refund", field.SignNegative)
 	decl := mustSignWhen(t, mustSign(t, field.NewMoneyDeclaration(), field.SignPositive), []field.ConditionalSign{refund})
@@ -125,8 +125,8 @@ func TestCheckMU06_Vector_80(t *testing.T) {
 	wantMU06(t, in, verdict.OutcomeFail)
 }
 
-func TestCheckMU06_Vector_81(t *testing.T) {
-	// Vector 81: sign_when refund → negative, arguments.type absent |
+func TestCheckMU06_MU_V81(t *testing.T) {
+	// MU-V81: sign_when refund → negative, arguments.type absent |
 	// amount=500 | INDETERMINATE | MU-06 (when path unresolved)
 	refund := mustConditionalSign(t, "refund", field.SignNegative)
 	decl := mustSignWhen(t, field.NewMoneyDeclaration(), []field.ConditionalSign{refund})
@@ -139,8 +139,8 @@ func TestCheckMU06_Vector_81(t *testing.T) {
 	wantMU06(t, in, verdict.OutcomeIndeterminate)
 }
 
-func TestCheckMU06_Vector_82(t *testing.T) {
-	// Vector 82: sign: positive, nonzero: true | 0 | FAIL | MU-06
+func TestCheckMU06_MU_V82(t *testing.T) {
+	// MU-V82: sign: positive, nonzero: true | 0 | FAIL | MU-06
 	decl := mustSign(t, field.NewMoneyDeclaration(), field.SignPositive).WithNonzero()
 	in := Input{
 		Field:    "arguments.amount",
@@ -150,8 +150,8 @@ func TestCheckMU06_Vector_82(t *testing.T) {
 	wantMU06(t, in, verdict.OutcomeFail)
 }
 
-func TestCheckMU06_Vector_91(t *testing.T) {
-	// Vector 91: sign: positive and sign_when { type: refund, category:
+func TestCheckMU06_MU_V91(t *testing.T) {
+	// MU-V91: sign: positive and sign_when { type: refund, category:
 	// fees } → negative | type=charge, category absent, amount=-500 |
 	// FAIL | MU-06 (one contradicted entry rules the clause out)
 	typeEntry, err := field.NewWhenEntry("arguments.type", field.NewStringValue("refund"))
@@ -180,8 +180,8 @@ func TestCheckMU06_Vector_91(t *testing.T) {
 	wantMU06(t, in, verdict.OutcomeFail)
 }
 
-func TestCheckMU06_Vector_92(t *testing.T) {
-	// Vector 92: sign: positive and sign_when refund → negative |
+func TestCheckMU06_MU_V92(t *testing.T) {
+	// MU-V92: sign: positive and sign_when refund → negative |
 	// type=null, amount=-500 | FAIL | MU-06 (an explicit null resolves)
 	refund := mustConditionalSign(t, "refund", field.SignNegative)
 	decl := mustSignWhen(t, mustSign(t, field.NewMoneyDeclaration(), field.SignPositive), []field.ConditionalSign{refund})
@@ -194,8 +194,8 @@ func TestCheckMU06_Vector_92(t *testing.T) {
 	wantMU06(t, in, verdict.OutcomeFail)
 }
 
-func TestCheckMU06_Vector_104(t *testing.T) {
-	// Vector 104: sign_when refund → negative, no unconditional sign |
+func TestCheckMU06_MU_V104(t *testing.T) {
+	// MU-V104: sign_when refund → negative, no unconditional sign |
 	// type=charge, amount=500 | INDETERMINATE | MU-06 (no clause matches,
 	// no fallback)
 	refund := mustConditionalSign(t, "refund", field.SignNegative)
@@ -209,8 +209,8 @@ func TestCheckMU06_Vector_104(t *testing.T) {
 	wantMU06(t, in, verdict.OutcomeIndeterminate)
 }
 
-func TestCheckMU06_Vector_113(t *testing.T) {
-	// Vector 113: sign: positive and sign_when refund → negative,
+func TestCheckMU06_MU_V113(t *testing.T) {
+	// MU-V113: sign: positive and sign_when refund → negative,
 	// arguments.type absent | amount=500 | INDETERMINATE | MU-06 (rule 2
 	// precedes the unconditional sign fallback)
 	refund := mustConditionalSign(t, "refund", field.SignNegative)
@@ -224,8 +224,8 @@ func TestCheckMU06_Vector_113(t *testing.T) {
 	wantMU06(t, in, verdict.OutcomeIndeterminate)
 }
 
-func TestCheckMU06_Vector_116(t *testing.T) {
-	// Vector 116: sign: any | -500 | PASS | MU-06 (any establishes a sign
+func TestCheckMU06_MU_V116(t *testing.T) {
+	// MU-V116: sign: any | -500 | PASS | MU-06 (any establishes a sign
 	// nothing violates)
 	decl := mustSign(t, field.NewMoneyDeclaration(), field.SignAny)
 	in := Input{
@@ -236,8 +236,8 @@ func TestCheckMU06_Vector_116(t *testing.T) {
 	wantMU06(t, in, verdict.OutcomePass)
 }
 
-func TestCheckMU06_Vector_117(t *testing.T) {
-	// Vector 117: sign: any, nonzero: true | 0 | FAIL | MU-06 (any with
+func TestCheckMU06_MU_V117(t *testing.T) {
+	// MU-V117: sign: any, nonzero: true | 0 | FAIL | MU-06 (any with
 	// nonzero still rejects zero)
 	decl := mustSign(t, field.NewMoneyDeclaration(), field.SignAny).WithNonzero()
 	in := Input{
@@ -248,8 +248,8 @@ func TestCheckMU06_Vector_117(t *testing.T) {
 	wantMU06(t, in, verdict.OutcomeFail)
 }
 
-func TestCheckMU06_Vector_118(t *testing.T) {
-	// Vector 118: sign: positive and sign_when { arguments.metadata:
+func TestCheckMU06_MU_V118(t *testing.T) {
+	// MU-V118: sign: positive and sign_when { arguments.metadata:
 	// "premium" } → negative | arguments.metadata: {tier: "gold"},
 	// amount=500 | INDETERMINATE | MU-06 (when path resolves to a JSON
 	// object, not a comparable shape)
@@ -271,8 +271,8 @@ func TestCheckMU06_Vector_118(t *testing.T) {
 	wantMU06(t, in, verdict.OutcomeIndeterminate)
 }
 
-func TestCheckMU06_Vector_122(t *testing.T) {
-	// Vector 122: sign: positive and sign_when { arguments.type: ["refund"]
+func TestCheckMU06_MU_V122(t *testing.T) {
+	// MU-V122: sign: positive and sign_when { arguments.type: ["refund"]
 	// } → negative | type="refund", amount=500 | INDETERMINATE | MU-06
 	// (stated value is a JSON array, not a comparable shape)
 	entry, err := field.NewWhenEntry("arguments.type", field.NewNonComparableValue())

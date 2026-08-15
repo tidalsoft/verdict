@@ -67,26 +67,26 @@ func wantMU14NotApplicable(t *testing.T, in Input) {
 	}
 }
 
-func TestCheckMU14_Vector_04(t *testing.T) {
-	// Vector 4: money, major_units, USD | 49.99 | PASS | MU-14
+func TestCheckMU14_MU_V4(t *testing.T) {
+	// MU-V4: money, major_units, USD | 49.99 | PASS | MU-14
 	tbl := tables.NewISO4217Table()
 	wantMU14(t, usdInput(t, tbl, "49.99", "USD"), verdict.OutcomePass)
 }
 
-func TestCheckMU14_Vector_05(t *testing.T) {
-	// Vector 5: money, major_units, USD | 49.999 | FAIL | MU-14
+func TestCheckMU14_MU_V5(t *testing.T) {
+	// MU-V5: money, major_units, USD | 49.999 | FAIL | MU-14
 	tbl := tables.NewISO4217Table()
 	wantMU14(t, usdInput(t, tbl, "49.999", "USD"), verdict.OutcomeFail)
 }
 
-func TestCheckMU14_Vector_06(t *testing.T) {
-	// Vector 6: money, major_units, JPY | 500.5 | FAIL | MU-14 (exponent 0)
+func TestCheckMU14_MU_V6(t *testing.T) {
+	// MU-V6: money, major_units, JPY | 500.5 | FAIL | MU-14 (exponent 0)
 	tbl := tables.NewISO4217Table()
 	wantMU14(t, usdInput(t, tbl, "500.5", "JPY"), verdict.OutcomeFail)
 }
 
-func TestCheckMU14_Vector_07(t *testing.T) {
-	// Vector 7: money, major_units, KWD | 4.999 | PASS | MU-14 (exponent 3)
+func TestCheckMU14_MU_V7(t *testing.T) {
+	// MU-V7: money, major_units, KWD | 4.999 | PASS | MU-14 (exponent 3)
 	tbl := tables.NewISO4217Table()
 	wantMU14(t, usdInput(t, tbl, "4.999", "KWD"), verdict.OutcomePass)
 }
@@ -109,8 +109,8 @@ func TestCheckMU14_NegativeAndZero(t *testing.T) {
 	wantMU14(t, usdInput(t, tbl, "0.00", "USD"), verdict.OutcomePass)
 }
 
-func TestCheckMU14_Vector_101(t *testing.T) {
-	// Vector 101: money, USD (no scale) | 49.999 | INDETERMINATE | MU-14
+func TestCheckMU14_MU_V101(t *testing.T) {
+	// MU-V101: money, USD (no scale) | 49.999 | INDETERMINATE | MU-14
 	decl := mustCurrencyField(t, field.NewMoneyDeclaration()) // no WithScale
 	in := Input{
 		Field:    "arguments.amount",
@@ -122,8 +122,8 @@ func TestCheckMU14_Vector_101(t *testing.T) {
 	wantMU14(t, in, verdict.OutcomeIndeterminate)
 }
 
-func TestCheckMU14_Vector_102(t *testing.T) {
-	// Vector 102: money, major_units, no currency_field | 49.999 |
+func TestCheckMU14_MU_V102(t *testing.T) {
+	// MU-V102: money, major_units, no currency_field | 49.999 |
 	// INDETERMINATE | MU-14 (no exponent)
 	decl := mustScale(t, field.NewMoneyDeclaration(), field.ScaleMajorUnits) // no WithCurrencyField
 	in := Input{

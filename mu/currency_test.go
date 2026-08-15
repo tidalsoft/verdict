@@ -81,8 +81,8 @@ func wantMU03(t *testing.T, in Input, want verdict.Outcome) {
 	}
 }
 
-func TestCheckMU03_Vector_46(t *testing.T) {
-	// Vector 46: source "USD", target "USD" -> PASS
+func TestCheckMU03_MU_V46(t *testing.T) {
+	// MU-V46: source "USD", target "USD" -> PASS
 	in := Input{
 		Field:    "arguments.amount",
 		Registry: mustRegistry(t, fullCurrencyDeclaration(t)),
@@ -95,8 +95,8 @@ func TestCheckMU03_Vector_46(t *testing.T) {
 	wantMU03(t, in, verdict.OutcomePass)
 }
 
-func TestCheckMU03_Vector_47(t *testing.T) {
-	// Vector 47: source "USD", target "EUR" -> FAIL
+func TestCheckMU03_MU_V47(t *testing.T) {
+	// MU-V47: source "USD", target "EUR" -> FAIL
 	in := Input{
 		Field:    "arguments.amount",
 		Registry: mustRegistry(t, fullCurrencyDeclaration(t)),
@@ -109,8 +109,8 @@ func TestCheckMU03_Vector_47(t *testing.T) {
 	wantMU03(t, in, verdict.OutcomeFail)
 }
 
-func TestCheckMU03_Vector_48(t *testing.T) {
-	// Vector 48: source "usd", target "USD" -> PASS (case-insensitive)
+func TestCheckMU03_MU_V48(t *testing.T) {
+	// MU-V48: source "usd", target "USD" -> PASS (case-insensitive)
 	in := Input{
 		Field:    "arguments.amount",
 		Registry: mustRegistry(t, fullCurrencyDeclaration(t)),
@@ -123,8 +123,8 @@ func TestCheckMU03_Vector_48(t *testing.T) {
 	wantMU03(t, in, verdict.OutcomePass)
 }
 
-func TestCheckMU03_Vector_49(t *testing.T) {
-	// Vector 49: target_currency_field rooted at state., no state envelope
+func TestCheckMU03_MU_V49(t *testing.T) {
+	// MU-V49: target_currency_field rooted at state., no state envelope
 	// -> INDETERMINATE (target_currency_unresolved). This package has no
 	// notion of "state" distinct from Vals (see
 	// field.MoneyDeclaration.TargetCurrencyField's doc comment), so "no
@@ -140,8 +140,8 @@ func TestCheckMU03_Vector_49(t *testing.T) {
 	wantMU03(t, in, verdict.OutcomeIndeterminate)
 }
 
-func TestCheckMU03_Vector_50(t *testing.T) {
-	// Vector 50: currency_field path absent, target "USD" ->
+func TestCheckMU03_MU_V50(t *testing.T) {
+	// MU-V50: currency_field path absent, target "USD" ->
 	// INDETERMINATE (source_currency_unresolved)
 	decl := mustTargetCurrencyField(t, mustCurrencyField(t, field.NewMoneyDeclaration()))
 	in := Input{
@@ -153,8 +153,8 @@ func TestCheckMU03_Vector_50(t *testing.T) {
 	wantMU03(t, in, verdict.OutcomeIndeterminate)
 }
 
-func TestCheckMU03_Vector_108(t *testing.T) {
-	// Vector 108: both currency_field and target_currency_field paths
+func TestCheckMU03_MU_V108(t *testing.T) {
+	// MU-V108: both currency_field and target_currency_field paths
 	// absent -> INDETERMINATE (both_currencies_unresolved)
 	decl := fullCurrencyDeclaration(t)
 	in := Input{

@@ -5,18 +5,19 @@ import "testing"
 // TestReconciles_ConformanceVectors exercises MU-12's reconciliation
 // arithmetic directly. The [0.1, 0.2] case is the critical one: line items
 // [0.1, 0.2] must reconcile to a total of 0.3 under exact decimal
-// arithmetic, where binary floating point would fail it.
+// arithmetic, where binary floating point would fail it. Covers MU-V32,
+// MU-V33, MU-V34.
 func TestReconciles_ConformanceVectors(t *testing.T) {
 	cases := []struct {
-		vector int
-		name   string
-		items  []string
-		total  string
-		want   bool
+		vectorID string
+		name     string
+		items    []string
+		total    string
+		want     bool
 	}{
-		{32, "items [10.10, 20.20], total 30.30 -> PASS", []string{"10.10", "20.20"}, "30.30", true},
-		{33, "items [0.1, 0.2], total 0.3 -> PASS (exact decimal)", []string{"0.1", "0.2"}, "0.3", true},
-		{34, "items [10.10, 20.20], total 30.31 -> FAIL", []string{"10.10", "20.20"}, "30.31", false},
+		{vectorID: "MU-V32", name: "items [10.10, 20.20], total 30.30 -> PASS", items: []string{"10.10", "20.20"}, total: "30.30", want: true},
+		{vectorID: "MU-V33", name: "items [0.1, 0.2], total 0.3 -> PASS (exact decimal)", items: []string{"0.1", "0.2"}, total: "0.3", want: true},
+		{vectorID: "MU-V34", name: "items [10.10, 20.20], total 30.31 -> FAIL", items: []string{"10.10", "20.20"}, total: "30.31", want: false},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -36,21 +37,21 @@ func TestReconciles_ConformanceVectors(t *testing.T) {
 				t.Fatalf("Reconciles unexpected error: %v", err)
 			}
 			if got != tc.want {
-				t.Errorf("case %d: Reconciles(sum=%s, total=%s, tolerance=0) = %v, want %v",
-					tc.vector, computed, total, got, tc.want)
+				t.Errorf("%s: Reconciles(sum=%s, total=%s, tolerance=0) = %v, want %v",
+					tc.vectorID, computed, total, got, tc.want)
 			}
 		})
 	}
 }
 
-// TestVector33_ExactDecimalVersusFloat64 is the tripwire test for money
+// TestMU_V33_ExactDecimalVersusFloat64 is the tripwire test for money
 // never passing through float64: it proves [0.1, 0.2] reconciles to 0.3
 // under this package's exact decimal arithmetic, and independently
 // demonstrates that the same computation performed in native float64 does
 // NOT reconcile -- so a future change that quietly swapped this package's
 // internals for float64 math would make the first assertion fail, not just
 // the second.
-func TestVector33_ExactDecimalVersusFloat64(t *testing.T) {
+func TestMU_V33_ExactDecimalVersusFloat64(t *testing.T) {
 	// The float64 half: 0.1 + 0.2 != 0.3 in IEEE 754 binary64. This is not
 	// testing this package at all -- it is documenting, in an executable and
 	// permanently-checked form, exactly the defect MU-12 exists to keep out

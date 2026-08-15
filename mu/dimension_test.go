@@ -71,8 +71,8 @@ func wantMU04(t *testing.T, in Input, want verdict.Outcome) {
 	}
 }
 
-func TestCheckMU04_Vector_22(t *testing.T) {
-	// Vector 22: quantity, mass, kg | "12 lb" | PASS -> 5.443 kg | MU-04
+func TestCheckMU04_MU_V22(t *testing.T) {
+	// MU-V22: quantity, mass, kg | "12 lb" | PASS -> 5.443 kg | MU-04
 	decl := mustDimension(t, field.NewQuantityDeclaration(), "mass")
 	in := Input{
 		Field:           "arguments.amount",
@@ -85,8 +85,8 @@ func TestCheckMU04_Vector_22(t *testing.T) {
 	wantMU04(t, in, verdict.OutcomePass)
 }
 
-func TestCheckMU04_Vector_23(t *testing.T) {
-	// Vector 23: quantity, mass, kg | "12 m" | FAIL | MU-04 (dimension)
+func TestCheckMU04_MU_V23(t *testing.T) {
+	// MU-V23: quantity, mass, kg | "12 m" | FAIL | MU-04 (dimension)
 	decl := mustDimension(t, field.NewQuantityDeclaration(), "mass")
 	in := Input{
 		Field:           "arguments.amount",
@@ -99,8 +99,8 @@ func TestCheckMU04_Vector_23(t *testing.T) {
 	wantMU04(t, in, verdict.OutcomeFail)
 }
 
-func TestCheckMU04_Vector_25(t *testing.T) {
-	// Vector 25: quantity, mass, kg | "12 flurbs" | FAIL | MU-04 (unknown unit)
+func TestCheckMU04_MU_V25(t *testing.T) {
+	// MU-V25: quantity, mass, kg | "12 flurbs" | FAIL | MU-04 (unknown unit)
 	decl := mustDimension(t, field.NewQuantityDeclaration(), "mass")
 	in := Input{
 		Field:           "arguments.amount",
@@ -113,8 +113,8 @@ func TestCheckMU04_Vector_25(t *testing.T) {
 	wantMU04(t, in, verdict.OutcomeFail)
 }
 
-func TestCheckMU04_Vector_26(t *testing.T) {
-	// Vector 26: temperature, K | "50 °F" | PASS -> 283.15 K | MU-04 (affine)
+func TestCheckMU04_MU_V26(t *testing.T) {
+	// MU-V26: temperature, K | "50 °F" | PASS -> 283.15 K | MU-04 (affine)
 	decl := mustDimension(t, field.NewQuantityDeclaration(), "temperature")
 	in := Input{
 		Field:           "arguments.amount",
@@ -127,8 +127,8 @@ func TestCheckMU04_Vector_26(t *testing.T) {
 	wantMU04(t, in, verdict.OutcomePass)
 }
 
-func TestCheckMU04_Vector_56(t *testing.T) {
-	// Vector 56: quantity, mass, kg, unit_required | 12 | INDETERMINATE |
+func TestCheckMU04_MU_V56(t *testing.T) {
+	// MU-V56: quantity, mass, kg, unit_required | 12 | INDETERMINATE |
 	// MU-04 (unit absent)
 	decl := mustDimension(t, field.NewQuantityDeclaration(), "mass").WithUnitRequired()
 	in := Input{
@@ -140,8 +140,8 @@ func TestCheckMU04_Vector_56(t *testing.T) {
 	wantMU04(t, in, verdict.OutcomeIndeterminate)
 }
 
-func TestCheckMU04_Vector_57(t *testing.T) {
-	// Vector 57: quantity, canonical_unit kg (no dimension) | "12 kg" |
+func TestCheckMU04_MU_V57(t *testing.T) {
+	// MU-V57: quantity, canonical_unit kg (no dimension) | "12 kg" |
 	// INDETERMINATE | MU-04
 	decl := mustCanonicalUnit(t, field.NewQuantityDeclaration(), "kg")
 	in := Input{
@@ -155,8 +155,8 @@ func TestCheckMU04_Vector_57(t *testing.T) {
 	wantMU04(t, in, verdict.OutcomeIndeterminate)
 }
 
-func TestCheckMU04_Vector_106(t *testing.T) {
-	// Vector 106: quantity, mass, unit_field | "12 lb", unit field "kg" |
+func TestCheckMU04_MU_V106(t *testing.T) {
+	// MU-V106: quantity, mass, unit_field | "12 lb", unit field "kg" |
 	// INDETERMINATE | MU-04 (unit_conflict)
 	decl := mustUnitField(t, mustDimension(t, field.NewQuantityDeclaration(), "mass"))
 	in := Input{
@@ -171,8 +171,8 @@ func TestCheckMU04_Vector_106(t *testing.T) {
 	wantMU04(t, in, verdict.OutcomeIndeterminate)
 }
 
-func TestCheckMU04_Vector_121(t *testing.T) {
-	// Vector 121: quantity, mass, unit_field | "12 kg", unit field
+func TestCheckMU04_MU_V121(t *testing.T) {
+	// MU-V121: quantity, mass, unit_field | "12 kg", unit field
 	// "flurbs" | INDETERMINATE | MU-04 (unit_conflict; the conflicting
 	// unit_field string need not itself be registry-recognised)
 	decl := mustUnitField(t, mustDimension(t, field.NewQuantityDeclaration(), "mass"))

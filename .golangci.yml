@@ -62,7 +62,7 @@ linters:
     # of its own platform packages; here there is no platform package to
     # name, so the rule instead denies direct imports of the standard-library
     # packages a pure library must never need. Each is denied by exact
-    # package path (no files restriction, so the rule applies repo-wide):
+    # package path:
     #
     #   net, net/http    -- network access
     #   os, os/exec      -- filesystem access and process execution
@@ -75,9 +75,35 @@ linters:
     # of transitive denial, which is the correct behaviour here: banning
     # fmt to chase that would be absurd, and the standard library's own
     # transitive dependency graph is not this module's concern.
+    #
+    # Three rules, not one, because exactly one file genuinely needs an
+    # exception: conformance_test.go's gate has to walk this module's own
+    # directory tree to find and parse every buildable _test.go file, which
+    # is meta-testing infrastructure, not the evaluation path the invariant
+    # protects -- nothing under test ever executes it, and it never runs
+    # outside `go test`. No other file gets this exception.
+    #
+    #   - "purity" is the non-test rule, unchanged: every file that is not
+    #     a _test.go file, denying the full list.
+    #   - "purity-tests" is every _test.go file *except* conformance_test.go
+    #     (the "!**/conformance_test.go" entry excludes it from this rule),
+    #     denying the same full list -- ordinary test code has no more
+    #     licence to touch the filesystem, network, or a database than
+    #     production code does.
+    #   - "purity-conformance-gate" covers conformance_test.go, denying
+    #     everything except path/filepath: it needs filepath.WalkDir/Dir/
+    #     Join/SkipDir to find the module's own _test.go files, but has no
+    #     more business reaching the network, exec'ing a process, or
+    #     touching a database than anything else here does. The glob
+    #     matches on basename, so a second file named conformance_test.go
+    #     in any package would inherit the exception -- there is one today,
+    #     at the module root, and a second one wanting filepath should be
+    #     questioned rather than quietly allowed.
     depguard:
       rules:
         purity:
+          files:
+            - "!$test"
           deny:
             - pkg: "net$"
               desc: "this module is a pure evaluation library and must not perform network access (see doc.go)"
@@ -93,6 +119,41 @@ linters:
               desc: "this module is a pure evaluation library and must not manipulate filesystem paths (see doc.go)"
             - pkg: "database/sql$"
               desc: "this module is a pure evaluation library and must not perform I/O (see doc.go)"
+        purity-tests:
+          files:
+            - "$test"
+            - "!**/conformance_test.go"
+          deny:
+            - pkg: "net$"
+              desc: "test code must not perform network access -- tests must be deterministic and hermetic"
+            - pkg: "net/"
+              desc: "test code must not perform network access -- tests must be deterministic and hermetic"
+            - pkg: "os$"
+              desc: "test code must not perform filesystem or process access"
+            - pkg: "os/exec$"
+              desc: "test code must not execute processes"
+            - pkg: "io/ioutil$"
+              desc: "test code must not perform filesystem access (legacy alias for os/io)"
+            - pkg: "path/filepath$"
+              desc: "test code must not manipulate filesystem paths -- only conformance_test.go has this exception, to walk the module's own test files"
+            - pkg: "database/sql$"
+              desc: "test code must not perform I/O"
+        purity-conformance-gate:
+          files:
+            - "**/conformance_test.go"
+          deny:
+            - pkg: "net$"
+              desc: "the conformance gate must not perform network access -- tests must be deterministic and hermetic"
+            - pkg: "net/"
+              desc: "the conformance gate must not perform network access -- tests must be deterministic and hermetic"
+            - pkg: "os$"
+              desc: "the conformance gate must not perform filesystem or process access beyond what go/build and go/parser themselves do to find and read this module's own _test.go files"
+            - pkg: "os/exec$"
+              desc: "the conformance gate must not execute processes"
+            - pkg: "io/ioutil$"
+              desc: "the conformance gate must not perform filesystem access (legacy alias for os/io)"
+            - pkg: "database/sql$"
+              desc: "the conformance gate must not perform I/O"
 
   exclusions:
     rules:

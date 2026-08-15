@@ -48,8 +48,8 @@ func wantMU15NotApplicable(t *testing.T, in Input) {
 	}
 }
 
-func TestCheckMU15_Vector_83(t *testing.T) {
-	// Vector 83: quantity, mass, canonical_unit kg, max "10" | "12 lb" |
+func TestCheckMU15_MU_V83(t *testing.T) {
+	// MU-V83: quantity, mass, canonical_unit kg, max "10" | "12 lb" |
 	// PASS | MU-15
 	decl := mustCanonicalUnit(t, mustDimension(t, field.NewQuantityDeclaration(), "mass"), "kg").WithMax(mustParse(t, "10"))
 	in := Input{
@@ -63,8 +63,8 @@ func TestCheckMU15_Vector_83(t *testing.T) {
 	wantMU15(t, in, verdict.OutcomePass)
 }
 
-func TestCheckMU15_Vector_85(t *testing.T) {
-	// Vector 85: quantity, mass, canonical_unit kg, max "10" | 12 |
+func TestCheckMU15_MU_V85(t *testing.T) {
+	// MU-V85: quantity, mass, canonical_unit kg, max "10" | 12 |
 	// INDETERMINATE | MU-15 (nothing to convert from)
 	decl := mustCanonicalUnit(t, mustDimension(t, field.NewQuantityDeclaration(), "mass"), "kg").WithMax(mustParse(t, "10"))
 	in := Input{
@@ -76,8 +76,8 @@ func TestCheckMU15_Vector_85(t *testing.T) {
 	wantMU15(t, in, verdict.OutcomeIndeterminate)
 }
 
-func TestCheckMU15_Vector_97(t *testing.T) {
-	// Vector 97: quantity, temperature, canonical_unit K, tolerance "0" |
+func TestCheckMU15_MU_V97(t *testing.T) {
+	// MU-V97: quantity, temperature, canonical_unit K, tolerance "0" |
 	// "100 °F" | FAIL @ warn | MU-15 (5/9 does not round-trip in decimal)
 	decl, err := mustDimension(t, field.NewQuantityDeclaration(), "temperature").
 		WithCanonicalUnit("K")
@@ -96,8 +96,8 @@ func TestCheckMU15_Vector_97(t *testing.T) {
 	wantMU15(t, in, verdict.OutcomeFail)
 }
 
-func TestCheckMU15_Vector_107(t *testing.T) {
-	// Vector 107: quantity, mass, canonical_unit kg, unit_field | "12 lb",
+func TestCheckMU15_MU_V107(t *testing.T) {
+	// MU-V107: quantity, mass, canonical_unit kg, unit_field | "12 lb",
 	// unit field "kg" | INDETERMINATE | MU-15 (unit_conflict)
 	decl := mustUnitField(t,
 		mustCanonicalUnit(t, mustDimension(t, field.NewQuantityDeclaration(), "mass"), "kg"))
@@ -113,8 +113,8 @@ func TestCheckMU15_Vector_107(t *testing.T) {
 	wantMU15(t, in, verdict.OutcomeIndeterminate)
 }
 
-func TestCheckMU15_Vector_120(t *testing.T) {
-	// Vector 120: quantity, mass, canonical_unit kg | "12 m" |
+func TestCheckMU15_MU_V120(t *testing.T) {
+	// MU-V120: quantity, mass, canonical_unit kg | "12 m" |
 	// INDETERMINATE | MU-15 (unit recognised, wrong dimension)
 	decl := mustCanonicalUnit(t, mustDimension(t, field.NewQuantityDeclaration(), "mass"), "kg")
 	in := Input{

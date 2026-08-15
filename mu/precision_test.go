@@ -34,8 +34,8 @@ func wantMU02(t *testing.T, in Input, want verdict.Outcome) {
 	}
 }
 
-func TestCheckMU02_Vector_09(t *testing.T) {
-	// Vector 9: money, decimal string | "49.99" | PASS | MU-02
+func TestCheckMU02_MU_V9(t *testing.T) {
+	// MU-V9: money, decimal string | "49.99" | PASS | MU-02
 	in := Input{
 		Field:      "arguments.amount",
 		Value:      mustParse(t, "49.99"),
@@ -45,8 +45,8 @@ func TestCheckMU02_Vector_09(t *testing.T) {
 	wantMU02(t, in, verdict.OutcomePass)
 }
 
-func TestCheckMU02_Vector_10(t *testing.T) {
-	// Vector 10: money, JSON number | 0.1 | FAIL | MU-02 (not exactly
+func TestCheckMU02_MU_V10(t *testing.T) {
+	// MU-V10: money, JSON number | 0.1 | FAIL | MU-02 (not exactly
 	// representable in binary64)
 	in := Input{
 		Field:      "arguments.amount",
@@ -57,8 +57,8 @@ func TestCheckMU02_Vector_10(t *testing.T) {
 	wantMU02(t, in, verdict.OutcomeFail)
 }
 
-func TestCheckMU02_Vector_11(t *testing.T) {
-	// Vector 11: money, JSON number | 9007199254740993 | FAIL | MU-02
+func TestCheckMU02_MU_V11(t *testing.T) {
+	// MU-V11: money, JSON number | 9007199254740993 | FAIL | MU-02
 	// (> 2^53-1)
 	in := Input{
 		Field:      "arguments.amount",
@@ -72,7 +72,7 @@ func TestCheckMU02_Vector_11(t *testing.T) {
 func TestCheckMU02_JSONNumber_SafeIntegerBoundary_Pass(t *testing.T) {
 	// 2^53-1 itself is exactly representable and does not exceed the safe
 	// integer ceiling -- PASS, not FAIL, distinguishing this boundary from
-	// vector 11's one-more-than-the-ceiling case.
+	// MU-V11's one-more-than-the-ceiling case.
 	in := Input{
 		Field:      "arguments.amount",
 		Value:      mustParse(t, "9007199254740991"),
@@ -183,8 +183,8 @@ func TestCheckMU02_WrongKind_NotApplicable(t *testing.T) {
 	}
 }
 
-func TestCheckMU02_Vector_44(t *testing.T) {
-	// Vector 44: money | "1,234" (resolution refused, not coercible) |
+func TestCheckMU02_MU_V44(t *testing.T) {
+	// MU-V44: money | "1,234" (resolution refused, not coercible) |
 	// INDETERMINATE | MU-02 (value_not_coercible). This is the case
 	// checkMU02's own doc comment warns about: without the coercion
 	// interception, a naive "arrived as a string -> PASS" reading would
@@ -197,8 +197,8 @@ func TestCheckMU02_Vector_44(t *testing.T) {
 	wantMU02(t, in, verdict.OutcomeIndeterminate)
 }
 
-func TestCheckMU02_Vector_45(t *testing.T) {
-	// Vector 45: money | null (neither string nor number, not coercible) |
+func TestCheckMU02_MU_V45(t *testing.T) {
+	// MU-V45: money | null (neither string nor number, not coercible) |
 	// INDETERMINATE | MU-02 (value_not_coercible).
 	in := Input{
 		Field:               "arguments.amount",

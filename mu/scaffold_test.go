@@ -318,7 +318,7 @@ func TestOrdinaryRuleset_NotDenyUnderStrict(t *testing.T) {
 	}
 }
 
-// TestEvaluate_Vector_16 wires SPEC-MU §8.3 vector 16: a money field whose
+// TestEvaluate_MU_V16 wires SPEC-MU §8.3 MU-V16: a money field whose
 // value did not coerce ("1,234", a string resolution refuses) must report
 // INDETERMINATE from every applicable value-dependent check (§2.6.3) --
 // MU-01, MU-02, MU-06, MU-07, MU-14 for this declaration -- while MU-03,
@@ -326,7 +326,7 @@ func TestOrdinaryRuleset_NotDenyUnderStrict(t *testing.T) {
 // field's own value, evaluates normally and is unaffected by the coercion
 // failure. That contrast is the point of the vector: the coercion gate is
 // scoped to value-dependent checks, not to the field as a whole.
-func TestEvaluate_Vector_16(t *testing.T) {
+func TestEvaluate_MU_V16(t *testing.T) {
 	decl := field.NewMoneyDeclaration()
 	decl, err := decl.WithScale(field.ScaleMajorUnits)
 	if err != nil {

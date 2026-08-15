@@ -6,25 +6,25 @@ import "testing"
 // precision_loss check must distinguish: a decimal string always passes; a
 // JSON number that isn't exactly representable in binary64 fails; a JSON
 // number whose magnitude exceeds 2^53-1 fails. These are the acceptance
-// tests for MU-02 at this layer.
+// tests for MU-02 at this layer. Covers MU-V9, MU-V10, MU-V11.
 func TestPrecisionLoss_ConformanceVectors(t *testing.T) {
 	cases := []struct {
-		vector     int
+		vectorID   string
 		name       string
 		value      string
 		provenance Provenance
 		want       bool // want == true means MU-02 would FAIL
 	}{
-		{9, "money, decimal string -> PASS", "49.99", FromString, false},
-		{10, "money, JSON number 0.1 -> FAIL (not exactly representable)", "0.1", FromJSONNumber, true},
-		{11, "money, JSON number > 2^53-1 -> FAIL", "9007199254740993", FromJSONNumber, true},
+		{vectorID: "MU-V9", name: "money, decimal string -> PASS", value: "49.99", provenance: FromString, want: false},
+		{vectorID: "MU-V10", name: "money, JSON number 0.1 -> FAIL (not exactly representable)", value: "0.1", provenance: FromJSONNumber, want: true},
+		{vectorID: "MU-V11", name: "money, JSON number > 2^53-1 -> FAIL", value: "9007199254740993", provenance: FromJSONNumber, want: true},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			d := mustParse(t, tc.value)
 			got := PrecisionLoss(d, tc.provenance)
 			if got != tc.want {
-				t.Errorf("vector %d: PrecisionLoss(%s, %v) = %v, want %v", tc.vector, tc.value, tc.provenance, got, tc.want)
+				t.Errorf("%s: PrecisionLoss(%s, %v) = %v, want %v", tc.vectorID, tc.value, tc.provenance, got, tc.want)
 			}
 		})
 	}

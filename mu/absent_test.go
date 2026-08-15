@@ -33,8 +33,8 @@ func wantMU05(t *testing.T, in Input, want verdict.Outcome) {
 	}
 }
 
-func TestCheckMU05_Vector_24(t *testing.T) {
-	// Vector 24: quantity, mass, kg, unit_required | 12 | FAIL | MU-05
+func TestCheckMU05_MU_V24(t *testing.T) {
+	// MU-V24: quantity, mass, kg, unit_required | 12 | FAIL | MU-05
 	// (unit required)
 	decl := mustDimension(t, field.NewQuantityDeclaration(), "mass").WithUnitRequired()
 	in := Input{
@@ -45,8 +45,8 @@ func TestCheckMU05_Vector_24(t *testing.T) {
 	wantMU05(t, in, verdict.OutcomeFail)
 }
 
-func TestCheckMU05_Vector_58(t *testing.T) {
-	// Vector 58: quantity, mass, unit_required, unit_field | "12 lb", unit
+func TestCheckMU05_MU_V58(t *testing.T) {
+	// MU-V58: quantity, mass, unit_required, unit_field | "12 lb", unit
 	// field "kg" | INDETERMINATE | MU-05 (unit_conflict)
 	decl := mustUnitField(t, mustDimension(t, field.NewQuantityDeclaration(), "mass")).WithUnitRequired()
 	in := Input{
@@ -60,8 +60,8 @@ func TestCheckMU05_Vector_58(t *testing.T) {
 	wantMU05(t, in, verdict.OutcomeIndeterminate)
 }
 
-func TestCheckMU05_Vector_59(t *testing.T) {
-	// Vector 59: quantity, mass, unit_required, no bounds | "12 lb" | PASS
+func TestCheckMU05_MU_V59(t *testing.T) {
+	// MU-V59: quantity, mass, unit_required, no bounds | "12 lb" | PASS
 	// | MU-05 (decomposed with no number read)
 	decl := mustDimension(t, field.NewQuantityDeclaration(), "mass").WithUnitRequired()
 	in := Input{

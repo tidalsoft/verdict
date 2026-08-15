@@ -389,8 +389,8 @@ func TestCheckMU07_Decimal_NoBounds_NotApplicable(t *testing.T) {
 	}
 }
 
-func TestCheckMU07_Vector_68(t *testing.T) {
-	// Vector 68: decimal, max "10", exclusive_max | 10 | FAIL | MU-07
+func TestCheckMU07_MU_V68(t *testing.T) {
+	// MU-V68: decimal, max "10", exclusive_max | 10 | FAIL | MU-07
 	// (exclusive bound)
 	decl := field.NewDecimalDeclaration().WithMax(mustParse(t, "10")).WithExclusiveMax()
 	in := Input{
@@ -413,8 +413,8 @@ func TestCheckMU07_Decimal_WithinBounds_Pass(t *testing.T) {
 
 // ---- MU-07: percentage branch ----
 
-func TestCheckMU07_Vector_66(t *testing.T) {
-	// Vector 66: percentage, max "0.5" (no domain) | 0.25 | INDETERMINATE
+func TestCheckMU07_MU_V66(t *testing.T) {
+	// MU-V66: percentage, max "0.5" (no domain) | 0.25 | INDETERMINATE
 	// | MU-07
 	decl := field.NewPercentageDeclaration().WithMax(mustParse(t, "0.5"))
 	in := Input{
@@ -461,8 +461,8 @@ func TestCheckMU07_Percentage_WithDomain_Pass(t *testing.T) {
 
 // ---- MU-07: quantity branch ----
 
-func TestCheckMU07_Vector_67(t *testing.T) {
-	// Vector 67: quantity, mass, canonical_unit kg, max "10" | 12 |
+func TestCheckMU07_MU_V67(t *testing.T) {
+	// MU-V67: quantity, mass, canonical_unit kg, max "10" | 12 |
 	// INDETERMINATE | MU-07 (value's unit unresolvable)
 	decl := mustCanonicalUnit(t, mustDimension(t, field.NewQuantityDeclaration(), "mass"), "kg").WithMax(mustParse(t, "10"))
 	in := Input{
@@ -474,8 +474,8 @@ func TestCheckMU07_Vector_67(t *testing.T) {
 	wantMU07(t, in, verdict.OutcomeIndeterminate)
 }
 
-func TestCheckMU07_Vector_84(t *testing.T) {
-	// Vector 84: quantity, mass, canonical_unit kg, max "10" | "50 lb" |
+func TestCheckMU07_MU_V84(t *testing.T) {
+	// MU-V84: quantity, mass, canonical_unit kg, max "10" | "50 lb" |
 	// FAIL | MU-07 (22.68 kg exceeds the bound)
 	decl := mustCanonicalUnit(t, mustDimension(t, field.NewQuantityDeclaration(), "mass"), "kg").WithMax(mustParse(t, "10"))
 	in := Input{
@@ -489,8 +489,8 @@ func TestCheckMU07_Vector_84(t *testing.T) {
 	wantMU07(t, in, verdict.OutcomeFail)
 }
 
-func TestCheckMU07_Vector_98(t *testing.T) {
-	// Vector 98: quantity, mass, unit_field, max "10", no canonical_unit |
+func TestCheckMU07_MU_V98(t *testing.T) {
+	// MU-V98: quantity, mass, unit_field, max "10", no canonical_unit |
 	// "12 lb" | INDETERMINATE | MU-07 (bounds have no stated units)
 	decl := mustUnitField(t, mustDimension(t, field.NewQuantityDeclaration(), "mass")).WithMax(mustParse(t, "10"))
 	in := Input{
@@ -504,8 +504,8 @@ func TestCheckMU07_Vector_98(t *testing.T) {
 	wantMU07(t, in, verdict.OutcomeIndeterminate)
 }
 
-func TestCheckMU07_Vector_105(t *testing.T) {
-	// Vector 105: quantity, mass, canonical_unit kg, unit_field, max "10"
+func TestCheckMU07_MU_V105(t *testing.T) {
+	// MU-V105: quantity, mass, canonical_unit kg, unit_field, max "10"
 	// | "12 lb", unit field "kg" | INDETERMINATE | MU-07 (unit_conflict)
 	decl := mustUnitField(t,
 		mustCanonicalUnit(t, mustDimension(t, field.NewQuantityDeclaration(), "mass"), "kg")).WithMax(mustParse(t, "10"))
@@ -521,8 +521,8 @@ func TestCheckMU07_Vector_105(t *testing.T) {
 	wantMU07(t, in, verdict.OutcomeIndeterminate)
 }
 
-func TestCheckMU07_Vector_119(t *testing.T) {
-	// Vector 119: quantity, mass, canonical_unit kg, max "10" | "12 m" |
+func TestCheckMU07_MU_V119(t *testing.T) {
+	// MU-V119: quantity, mass, canonical_unit kg, max "10" | "12 m" |
 	// INDETERMINATE | MU-07 (unit recognised, wrong dimension)
 	decl := mustCanonicalUnit(t, mustDimension(t, field.NewQuantityDeclaration(), "mass"), "kg").WithMax(mustParse(t, "10"))
 	in := Input{
@@ -755,8 +755,8 @@ func TestCheckMU07_Quantity_ConversionOverflow_Indeterminate(t *testing.T) {
 
 // ---- MU-07 money branch: explicit vectors 60-65 ----
 
-func TestCheckMU07_Vector_60(t *testing.T) {
-	// Vector 60: money, minor_units, USD, max "100.00" | 5000 | PASS |
+func TestCheckMU07_MU_V60(t *testing.T) {
+	// MU-V60: money, minor_units, USD, max "100.00" | 5000 | PASS |
 	// MU-07 (bounds in major units)
 	decl := mustCurrencyField(t, mustScale(t, field.NewMoneyDeclaration().WithMax(mustParse(t, "100.00")), field.ScaleMinorUnits))
 	in := Input{
@@ -769,8 +769,8 @@ func TestCheckMU07_Vector_60(t *testing.T) {
 	wantMU07(t, in, verdict.OutcomePass)
 }
 
-func TestCheckMU07_Vector_61(t *testing.T) {
-	// Vector 61: money, minor_units, USD, max "100.00" | 10001 | FAIL |
+func TestCheckMU07_MU_V61(t *testing.T) {
+	// MU-V61: money, minor_units, USD, max "100.00" | 10001 | FAIL |
 	// MU-07
 	decl := mustCurrencyField(t, mustScale(t, field.NewMoneyDeclaration().WithMax(mustParse(t, "100.00")), field.ScaleMinorUnits))
 	in := Input{
@@ -783,8 +783,8 @@ func TestCheckMU07_Vector_61(t *testing.T) {
 	wantMU07(t, in, verdict.OutcomeFail)
 }
 
-func TestCheckMU07_Vector_62(t *testing.T) {
-	// Vector 62: money, minor_units, JPY, max "100" | 101 | FAIL | MU-07
+func TestCheckMU07_MU_V62(t *testing.T) {
+	// MU-V62: money, minor_units, JPY, max "100" | 101 | FAIL | MU-07
 	// (exponent 0) -- catches an implementation that hardcodes exponent 2.
 	decl := mustCurrencyField(t, mustScale(t, field.NewMoneyDeclaration().WithMax(mustParse(t, "100")), field.ScaleMinorUnits))
 	in := Input{
@@ -797,8 +797,8 @@ func TestCheckMU07_Vector_62(t *testing.T) {
 	wantMU07(t, in, verdict.OutcomeFail)
 }
 
-func TestCheckMU07_Vector_63(t *testing.T) {
-	// Vector 63: money, major_units, max "100.00", no currency_field |
+func TestCheckMU07_MU_V63(t *testing.T) {
+	// MU-V63: money, major_units, max "100.00", no currency_field |
 	// 50.00 | PASS | MU-07 (no exponent read)
 	decl := mustScale(t, field.NewMoneyDeclaration().WithMax(mustParse(t, "100.00")), field.ScaleMajorUnits)
 	in := Input{
@@ -810,8 +810,8 @@ func TestCheckMU07_Vector_63(t *testing.T) {
 	wantMU07(t, in, verdict.OutcomePass)
 }
 
-func TestCheckMU07_Vector_64(t *testing.T) {
-	// Vector 64: money, minor_units, max "100.00", no currency_field |
+func TestCheckMU07_MU_V64(t *testing.T) {
+	// MU-V64: money, minor_units, max "100.00", no currency_field |
 	// 5000 | INDETERMINATE | MU-07 (currency unresolvable)
 	decl := mustScale(t, field.NewMoneyDeclaration().WithMax(mustParse(t, "100.00")), field.ScaleMinorUnits)
 	in := Input{
@@ -822,8 +822,8 @@ func TestCheckMU07_Vector_64(t *testing.T) {
 	wantMU07(t, in, verdict.OutcomeIndeterminate)
 }
 
-func TestCheckMU07_Vector_65(t *testing.T) {
-	// Vector 65: money (no scale), max "100.00" | 50 | INDETERMINATE |
+func TestCheckMU07_MU_V65(t *testing.T) {
+	// MU-V65: money (no scale), max "100.00" | 50 | INDETERMINATE |
 	// MU-07
 	decl := field.NewMoneyDeclaration().WithMax(mustParse(t, "100.00"))
 	in := Input{
