@@ -306,9 +306,31 @@ func discoverImplementedVectorIDs(t *testing.T) map[string]bool {
 // covers every vector that gap accounts for, rather than one unique
 // sentence per vector ID.
 const (
-	skipReasonMU20Outlier          = "MU-20 statistical outlier detection is not implemented"
-	skipReasonMU21Promotion        = "MU-21 statistical promotion-threshold checks are not implemented"
-	skipReasonMU22DuplicateEntity  = "MU-22 duplicate/near-duplicate entity detection is not implemented"
+	// MU-V41's declaration is "MU-21 promotion, 99 fires" and its expected
+	// outcome is "API rejects" (SPEC-MU §2.2's 100-fire minimum before a
+	// Class S check may be promoted to block for a field). SPEC-MU §8.3
+	// is explicit that an implementation offering no promotion interface
+	// at all discharges this vector vacuously -- but only if it also
+	// offers no way to reach block severity for a Class S check by any
+	// route; offering the destination while omitting the gate does not
+	// discharge the vector, it deletes the constraint. verdict does not
+	// meet the vacuous-discharge condition: verdict.NewPromotedResult
+	// (result.go) is exported and builds a Class S result at block
+	// severity from any caller, with no verification that 100 fires (or
+	// any fires at all) were ever recorded, and nothing in this module
+	// enforces SPEC-MU §2.2's floor. So this vector is not cleanly
+	// discharged by this repository -- checkMU21 itself is implemented
+	// and tested (MU-V40, MU-V111, MU-V112 below), but the promotion gate
+	// SPEC-MU §2.2 requires does not exist anywhere in verdict, and
+	// NewPromotedResult is the ungated route to the severity that gate is
+	// supposed to guard. Building that gate -- tracking per-field fire
+	// counts and refusing a promotion request backed by fewer than 100 --
+	// is the job of the service that hosts this library, not of a pure
+	// evaluation engine. Until that gate exists and is wired ahead of
+	// every call to NewPromotedResult, an implementation combining
+	// verdict with NewPromotedResult does not conform to SPEC-MU at Level
+	// D+S for this vector.
+	skipReasonMU21PromotionAPI     = "verdict does not cleanly discharge MU-V41: SPEC-MU §2.2's 100-fire promotion gate is not implemented anywhere in this module, verdict.NewPromotedResult is the ungated route to the block severity that gate is meant to guard, and building the gate is the hosting service's job, not this pure evaluation library's"
 	skipReasonSPECPGNotImplemented = "SPEC-PG gate evaluation is not implemented"
 )
 
@@ -333,9 +355,7 @@ func skippedConformanceVectors() map[string]string {
 		}
 	}
 
-	add(skipReasonMU20Outlier, 38, 39, 86, 87)
-	add(skipReasonMU21Promotion, 40, 41, 111, 112)
-	add(skipReasonMU22DuplicateEntity, 88, 89, 90)
+	add(skipReasonMU21PromotionAPI, 41)
 
 	for n := 1; n <= 53; n++ {
 		skips[fmt.Sprintf("PG-V%d", n)] = skipReasonSPECPGNotImplemented

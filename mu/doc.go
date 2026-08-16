@@ -1,11 +1,23 @@
-// Package mu implements ten Class D magnitude/scale/unit checks: MU-01
-// scale_declaration_conflict, MU-02 precision_loss, MU-03
-// currency_mismatch (SPEC-MU §3); MU-04 unit_dimension_mismatch and MU-05
-// unit_absent (SPEC-MU §4); MU-06 sign_convention and MU-07 range_bound
-// (SPEC-MU §3); MU-13 percentage_domain (SPEC-MU §3); MU-14
-// minor_unit_exponent (SPEC-MU §3); and MU-15 unit_conversion_overflow
-// (SPEC-MU §4). Each check is a pure function of a single field's Input;
-// Evaluate dispatches a field to the checks its declared Kind carries, in
+// Package mu implements SPEC-MU's sixteen Class D magnitude/scale/unit
+// checks and three Class S statistical checks (SPEC-MU §2.2's class
+// split). The Class D checks default to block severity and run
+// unconditionally: MU-01 scale_declaration_conflict, MU-02
+// precision_loss, MU-03 currency_mismatch, MU-06 sign_convention, MU-07
+// range_bound, MU-13 percentage_domain, and MU-14 minor_unit_exponent
+// (SPEC-MU §3); MU-04 unit_dimension_mismatch, MU-05 unit_absent, and
+// MU-15 unit_conversion_overflow (SPEC-MU §4, though MU-15's own default
+// severity is warn, not block -- see its own doc comment in
+// conversion.go); and MU-08 null_vs_absent, MU-09 numeric_string_
+// coercion, MU-10 timestamp_encoding, MU-11 date_range_bound, MU-12
+// total_reconciliation, and MU-16 identifier_checksum (SPEC-MU §5). The
+// Class S checks default to warn and reach block severity only through
+// the per-field promotion path SPEC-MU §2.2 describes -- this package
+// never performs that promotion itself, see statResult's doc comment in
+// statistics.go: MU-20 magnitude_outlier, MU-21 scale_shift_suspect, and
+// MU-22 digit_transposition_suspect (SPEC-MU §6).
+//
+// Each check is a pure function of a single field's Input; Evaluate
+// dispatches a field to the checks its declared Kind carries, in
 // ascending check-ID order (SPEC-MU §2.6), and returns every check's
 // Result — evaluation does not short-circuit on a FAIL, per §2.6, so all
 // applicable checks always run and all their results are always reported.
@@ -46,7 +58,13 @@
 // dispatch table keyed by field.Kind, implemented in its own file alongside
 // that file's tests: MU-01 (scale.go), MU-02 (precision.go), MU-03
 // (currency.go), MU-04 (dimension.go), MU-05 (absent.go), MU-06 (sign.go),
-// MU-07 (range.go), MU-13 (percentage.go), MU-14 (exponent.go), and MU-15
-// (conversion.go). resolveQuantityUnit (unit.go) is the shared unit
-// resolution helper MU-04, MU-05, MU-07, and MU-15 all consult.
+// MU-07 (range.go), MU-08 (null.go), MU-09 (numeric_string.go), MU-10
+// (timestamp.go), MU-11 (daterange.go), MU-12 (reconcile.go), MU-13
+// (percentage.go), MU-14 (exponent.go), MU-15 (conversion.go), MU-16
+// (identifier.go), MU-20 (outlier.go), MU-21 (scaleshift.go), and MU-22
+// (transposition.go). resolveQuantityUnit (unit.go) is the shared unit
+// resolution helper MU-04, MU-05, MU-07, and MU-15 all consult; statistics.go
+// holds the decimal-exact median, quartile, and MAD arithmetic MU-20 and
+// MU-21 both need, and the Class S Result constructors all three
+// statistical checks build their outcomes through.
 package mu

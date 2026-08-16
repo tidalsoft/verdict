@@ -173,6 +173,79 @@ type Input struct {
 	// different case entirely (vector MU-V114) and is INDETERMINATE, via
 	// the same reasoning Components uses for a miss.
 	Adjustments [][]SequenceElement
+
+	// Observations is the rolling window SPEC-MU §6 requires for the three
+	// statistical checks (MU-20, MU-21, MU-22): "maintain a rolling window
+	// (default 10,000 observations) per customer per field." This package
+	// performs no window maintenance of its own -- no eviction, no
+	// enrollment, no partitioning by customer -- exactly as it performs no
+	// path resolution or coercion of its own elsewhere in this struct
+	// (Vals, Components, Adjustments): the caller resolves and hands over
+	// the window for this one field, already scoped to the right customer,
+	// and this package only reads it. That is what keeps the check pure
+	// (SPEC-SYS §14.1): given the same Input, including the same
+	// Observations, a check always returns the same Result.
+	//
+	// Reading taken for an undefined term. SPEC-MU §6 does not define what
+	// counts as one "observation" -- the term recurs ("at least 200
+	// recorded observations," "a rolling window ... of observations") but
+	// is never given a formal unit. This package reads one observation as
+	// one entry of Observations: the 200-observation floor MU-20 and
+	// MU-21 both require is len(Input.Observations) >= 200, checked at
+	// the call site in outlier.go and scaleshift.go, each with its own
+	// comment pointing back here. No other reading is available without
+	// inventing machinery SPEC-MU never describes (weighting entries,
+	// deduplicating identical values), so this is the reading available
+	// by elimination, not a guess among several the text actually
+	// supports.
+	//
+	// Reading taken for whether the value under evaluation joins the
+	// window before or after its own evaluation. SPEC-MU §6 does not say.
+	// This package reads Observations as the *prior* window only, and
+	// never inserts Input.Value into it before computing a median, MAD,
+	// or quartile split: the value under test is compared against the
+	// distribution the caller supplied, not folded into it first. This is
+	// also the reading invariant 1 favours: including a candidate outlier
+	// in the reference distribution it is measured against can only
+	// dilute the median and inflate the MAD (masking), which can only
+	// make an anomalous value look more normal, never less -- so folding
+	// the value in first could turn a real statistical outlier into a
+	// false PASS that excluding it cannot. Excluding it is the reading
+	// that cannot manufacture a false PASS the other reading could.
+	Observations []Observation
+
+	// Entity is the identity SPEC-MU §6 (MU-22) associates with the value
+	// under evaluation -- "the identity the caller associates with an
+	// observation -- the entities of SPEC-PG §2.3 where a state envelope
+	// is supplied." HasEntity false means the caller identified none
+	// (vector MU-V90), mirroring every other comma-ok absence signal on
+	// this struct (HasRawValue, HasEmbeddedUnit, HasEvaluatedAt): Entity
+	// itself carries no meaning when HasEntity is false, including the
+	// empty string, which is a legitimate entity identifier in its own
+	// right and must not be confused with absence.
+	Entity    string
+	HasEntity bool
+}
+
+// Observation is one entry of Input.Observations: a previously recorded
+// value for the same field, and -- where the caller could identify one --
+// the entity that value belonged to. MU-20 (outlier.go) and MU-21
+// (scaleshift.go) read only Value, from every entry regardless of entity:
+// their rolling window is per customer per field, not per entity. MU-22
+// (transposition.go) reads both, because its own window is SPEC-MU §6's
+// phrase "here restricted to those carrying the same entity" -- the same
+// underlying window as MU-20's, filtered by Entity where MU-22 consumes
+// it, not a separate window this package maintains twice.
+//
+// HasEntity false means this particular prior observation carried no
+// entity of its own -- a call that predates entity tracking, say, or one
+// SPEC-PG §2.3 could not identify an entity for. Such an entry can never
+// match Input.Entity for MU-22's purposes, exactly as a query for a named
+// entity can never match a row with no entity recorded against it.
+type Observation struct {
+	Value     decimal.Decimal
+	Entity    string
+	HasEntity bool
 }
 
 // SequenceElement is one entry of a resolved SPEC-MU §2.4.2 sequence -- the
@@ -335,9 +408,9 @@ func checksFor(kind field.Kind) ([]OnFunc, bool) {
 	var checks []OnFunc
 	switch kind {
 	case field.KindMoney:
-		// Ascending ID order: 01, 02, 03, 06, 07, 08, 09, 14. MU-08
-		// (every kind) and MU-09 (money, decimal, percentage) both self-
-		// gate to not-applicable when their own declared attribute or
+		// Ascending ID order: 01, 02, 03, 06, 07, 08, 09, 14, 20, 21, 22.
+		// MU-08 (every kind) and MU-09 (money, decimal, percentage) both
+		// self-gate to not-applicable when their own declared attribute or
 		// request shape is absent (see checkMU08, checkMU09), exactly as
 		// MU-03/MU-05/MU-07/MU-15 already do elsewhere in this file's
 		// dispatch -- so listing them unconditionally here is safe for
@@ -346,28 +419,40 @@ func checksFor(kind field.Kind) ([]OnFunc, bool) {
 		// listed unconditionally on every kind below: it self-gates on
 		// Input.HasReconcile, which is data-dependent, not kind-dependent
 		// (SPEC-MU §2.5.1: MU-12's "Applies to" is ruleset-level, not one
-		// of the six kinds).
-		checks = []OnFunc{checkMU01, checkMU02, checkMU03, checkMU06, checkMU07, checkMU08, checkMU09, checkMU12, checkMU14}
+		// of the six kinds). MU-20 (outlier.go) and MU-22
+		// (transposition.go) carry no gate of their own on money at all
+		// (SPEC-MU §2.5.1's "Applicable only when" column is "--" for
+		// both) and so are listed unconditionally too; MU-21
+		// (scaleshift.go) self-gates to not-applicable wherever `scale`
+		// is declared, the one row in this table whose gate SPEC-MU
+		// §2.5.1 states as "is not declared" rather than as a positive
+		// attribute's presence.
+		checks = []OnFunc{checkMU01, checkMU02, checkMU03, checkMU06, checkMU07, checkMU08, checkMU09, checkMU12, checkMU14, checkMU20, checkMU21, checkMU22}
 	case field.KindDecimal:
 		// SPEC-MU §2.5.1's trigger matrix lists MU-06 (sign_convention),
 		// MU-07 (range_bound), and MU-09 (numeric_string_coercion) as
 		// applying to `decimal` exactly as to `money` -- alongside MU-02,
-		// which this dispatch already carried. Ascending ID order: 02,
-		// 06, 07, 08, 09, 12.
-		checks = []OnFunc{checkMU02, checkMU06, checkMU07, checkMU08, checkMU09, checkMU12}
+		// which this dispatch already carried. MU-20 and MU-22 apply to
+		// `decimal` too (their own Applies-to sets both name it); MU-21
+		// does not (SPEC-MU §2.5.1: MU-21 applies to `money` only).
+		// Ascending ID order: 02, 06, 07, 08, 09, 12, 20, 22.
+		checks = []OnFunc{checkMU02, checkMU06, checkMU07, checkMU08, checkMU09, checkMU12, checkMU20, checkMU22}
 	case field.KindPercentage:
 		// MU-07 and MU-09 also apply to `percentage` (MU-07's bounds in
 		// the declared domain's units; MU-09 wherever the value arrived
-		// as a string), ahead of MU-13 in ascending ID order: 07, 08, 09,
-		// 12, 13.
-		checks = []OnFunc{checkMU07, checkMU08, checkMU09, checkMU12, checkMU13}
+		// as a string), ahead of MU-13 in ascending ID order. MU-20 also
+		// applies to `percentage` (its Applies-to set names all four
+		// value-bearing kinds); MU-21 and MU-22 do not. Ascending ID
+		// order: 07, 08, 09, 12, 13, 20.
+		checks = []OnFunc{checkMU07, checkMU08, checkMU09, checkMU12, checkMU13, checkMU20}
 	case field.KindQuantity:
 		// MU-09 does not apply to `quantity` (SPEC-MU §2.5.1's Applies-to
 		// set for MU-09 is money, decimal, percentage only) -- a
 		// quantity's own string decomposition (§2.6.1) is not the
-		// locale-ambiguity question MU-09 answers. Ascending ID order:
-		// 04, 05, 07, 08, 12, 15.
-		checks = []OnFunc{checkMU04, checkMU05, checkMU07, checkMU08, checkMU12, checkMU15}
+		// locale-ambiguity question MU-09 answers. MU-20 applies to
+		// `quantity` too; MU-21 and MU-22 do not. Ascending ID order:
+		// 04, 05, 07, 08, 12, 15, 20.
+		checks = []OnFunc{checkMU04, checkMU05, checkMU07, checkMU08, checkMU12, checkMU15, checkMU20}
 	case field.KindTimestamp:
 		// Ascending ID order: 08, 10, 11, 12.
 		checks = []OnFunc{checkMU08, checkMU10, checkMU11, checkMU12}
@@ -415,7 +500,7 @@ func evaluateChecks(in Input, checks []OnFunc) ([]verdict.Result, error) {
 // declaration found is a MoneyDeclaration, collapsing both failure modes
 // -- no declaration at all, and a declaration for a different kind --
 // into the single comma-ok signal every money-only check (MU-01, MU-03,
-// MU-14) starts with and treats identically: not applicable (SPEC-MU
+// MU-14, MU-21) starts with and treats identically: not applicable (SPEC-MU
 // §2.5.1 step 1 -- the field's kind is outside the check's Applies to set
 // -- see notApplicable). There is nothing money-specific to say about a
 // field that isn't declared as money in the first place, and "not
@@ -615,8 +700,7 @@ func mustResult(checkID string, outcome verdict.Outcome) verdict.Result {
 }
 
 // one returns the exact decimal constant 1 -- MU-13's unit-interval
-// boundary (percentage.go), this package's only need for a fixed decimal
-// literal. It takes no argument, unlike the mustDecimal(s string) helper
+// boundary (percentage.go). It takes no argument, unlike the mustDecimal(s string) helper
 // it replaces: a zero-argument signature means no future call site can
 // thread new, unvetted, data-dependent text through it the way a
 // parameterized helper would invite. Getting a different constant out of
@@ -627,9 +711,17 @@ func mustResult(checkID string, outcome verdict.Outcome) verdict.Result {
 // mechanism (and its parameter) as an internal primitive: one()'s own
 // literal, "1", can never actually make decimal.Parse fail, so the only
 // way to exercise -- and therefore test -- that panic branch at all is
-// through a caller that can pass it something invalid. mustParseDecimal is
-// deliberately not called from anywhere else in this package; one() is its
-// one real caller.
+// through a caller that can pass it something invalid. mustParseDecimal
+// now has several callers besides one() -- conversion.go's
+// defaultQuantityTolerance, timestamp.go's epochMagnitudeThreshold,
+// scaleshift.go's mu21TenPercent and mu21Hundred, transposition.go's
+// mu22MagnitudeFactor, statistics.go's half, and outlier.go's
+// mu20Threshold and mu20ZConstant -- but the argument above still holds
+// for every one of them: each passes its own fixed literal, never
+// caller-supplied text, so none of them can reach the panic branch either.
+// TestMustParseDecimal_PanicsOnInvalidInput (scaffold_test.go) is what
+// actually exercises it, calling mustParseDecimal directly rather than
+// through any of these.
 func one() decimal.Decimal {
 	return mustParseDecimal("1")
 }
@@ -683,12 +775,16 @@ func passResult(checkID string) (verdict.Result, bool, error) {
 
 // checkMU01, checkMU02, checkMU03, checkMU04, checkMU05, checkMU06,
 // checkMU07, checkMU08, checkMU09, checkMU10, checkMU11, checkMU12,
-// checkMU13, checkMU14, checkMU15, and checkMU16 are each implemented in
-// their own file (scale.go, precision.go, currency.go, dimension.go,
-// absent.go, sign.go, range.go, null.go, numeric_string.go, timestamp.go,
-// daterange.go, reconcile.go, percentage.go, exponent.go, conversion.go,
-// and identifier.go respectively), alongside that file's tests.
-// resolveQuantityUnit (unit.go) is the one shared resolution helper every
-// quantity check (MU-04, MU-05, MU-07's quantity branch, MU-15) calls to
-// resolve a field's unit from its two possible sources -- see that file's
-// doc comment.
+// checkMU13, checkMU14, checkMU15, checkMU16, checkMU20, checkMU21, and
+// checkMU22 are each implemented in their own file (scale.go, precision.go,
+// currency.go, dimension.go, absent.go, sign.go, range.go, null.go,
+// numeric_string.go, timestamp.go, daterange.go, reconcile.go,
+// percentage.go, exponent.go, conversion.go, identifier.go, outlier.go,
+// scaleshift.go, and transposition.go respectively), alongside that file's
+// tests. resolveQuantityUnit (unit.go) is the one shared resolution helper
+// every quantity check (MU-04, MU-05, MU-07's quantity branch, MU-15)
+// calls to resolve a field's unit from its two possible sources -- see
+// that file's doc comment. statistics.go holds the decimal-exact median,
+// quartile, and MAD arithmetic MU-20 and MU-21 both need, and the Class S
+// Result constructors (statResult and friends) all three statistical
+// checks build their outcomes through.

@@ -338,8 +338,12 @@ func TestCheckMU07_MinorUnits_EvaluateDoesNotAbortSiblingChecks(t *testing.T) {
 	// End-to-end through Evaluate (not just checkMU07 directly): a scaling
 	// failure on MU-07 must not discard MU-01/MU-02/MU-06's results for the
 	// same field. MU-03 and MU-14 are not applicable to this declaration
-	// (no target_currency_field; scale is minor_units, not major_units), so
-	// they contribute no entry at all -- four results, not six.
+	// (no target_currency_field; scale is minor_units, not major_units), and
+	// neither is MU-21 (applicable only where scale is not declared), so
+	// none of the three contributes an entry. MU-20 and MU-22 carry no gate
+	// of their own on a money field and do contribute -- both
+	// INDETERMINATE, for want of Observations/Entity this Input does not
+	// set -- so six results, not four.
 	huge := mustParse(t, "999"+strings.Repeat("0", 99997))
 	decl := mustCurrencyField(t, mustScale(t, field.NewMoneyDeclaration().WithMin(huge), field.ScaleMinorUnits))
 	in := Input{
@@ -353,8 +357,8 @@ func TestCheckMU07_MinorUnits_EvaluateDoesNotAbortSiblingChecks(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Evaluate unexpected error: %v", err)
 	}
-	if len(results) != 4 {
-		t.Fatalf("Evaluate returned %d results, want 4 (MU-01, MU-02, MU-06, MU-07 -- MU-03 and MU-14 not applicable)", len(results))
+	if len(results) != 6 {
+		t.Fatalf("Evaluate returned %d results, want 6 (MU-01, MU-02, MU-06, MU-07, MU-20, MU-22 -- MU-03, MU-14, MU-21 not applicable)", len(results))
 	}
 	var sawMU07 bool
 	for _, res := range results {

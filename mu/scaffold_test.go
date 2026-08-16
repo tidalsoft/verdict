@@ -73,10 +73,10 @@ func TestChecksFor_DispatchTable(t *testing.T) {
 		want []OnFunc
 		ok   bool
 	}{
-		{"money", field.KindMoney, []OnFunc{checkMU01, checkMU02, checkMU03, checkMU06, checkMU07, checkMU08, checkMU09, checkMU12, checkMU14}, true},
-		{"decimal", field.KindDecimal, []OnFunc{checkMU02, checkMU06, checkMU07, checkMU08, checkMU09, checkMU12}, true},
-		{"percentage", field.KindPercentage, []OnFunc{checkMU07, checkMU08, checkMU09, checkMU12, checkMU13}, true},
-		{"quantity", field.KindQuantity, []OnFunc{checkMU04, checkMU05, checkMU07, checkMU08, checkMU12, checkMU15}, true},
+		{"money", field.KindMoney, []OnFunc{checkMU01, checkMU02, checkMU03, checkMU06, checkMU07, checkMU08, checkMU09, checkMU12, checkMU14, checkMU20, checkMU21, checkMU22}, true},
+		{"decimal", field.KindDecimal, []OnFunc{checkMU02, checkMU06, checkMU07, checkMU08, checkMU09, checkMU12, checkMU20, checkMU22}, true},
+		{"percentage", field.KindPercentage, []OnFunc{checkMU07, checkMU08, checkMU09, checkMU12, checkMU13, checkMU20}, true},
+		{"quantity", field.KindQuantity, []OnFunc{checkMU04, checkMU05, checkMU07, checkMU08, checkMU12, checkMU15, checkMU20}, true},
 		{"timestamp", field.KindTimestamp, []OnFunc{checkMU08, checkMU10, checkMU11, checkMU12}, true},
 		{"identifier", field.KindIdentifier, []OnFunc{checkMU08, checkMU12, checkMU16}, true},
 		{"unspecified", field.KindUnspecified, nil, false},
@@ -142,31 +142,44 @@ func TestEvaluate_DispatchPerKind(t *testing.T) {
 		wantOutcomes []verdict.Outcome
 	}{
 		{
+			// MU-20/21/22 (statistics.go, outlier.go, scaleshift.go,
+			// transposition.go) join this list with no declared attribute
+			// of their own to gate on: MU-20 and MU-22 always evaluate on
+			// a money field, MU-21 evaluates because `scale` is not
+			// declared. All three are INDETERMINATE here for want of
+			// their own required input (no Observations, no Entity) --
+			// never applicability, since none of the three is gated on a
+			// declared attribute the way MU-03/MU-07/MU-14 are.
 			"money",
 			field.NewMoneyDeclaration(),
-			[]string{"MU-01", "MU-02", "MU-06", "MU-14"},
+			[]string{"MU-01", "MU-02", "MU-06", "MU-14", "MU-20", "MU-21", "MU-22"},
 			[]verdict.Outcome{
 				verdict.OutcomeIndeterminate, verdict.OutcomePass,
 				verdict.OutcomeIndeterminate, verdict.OutcomeIndeterminate,
+				verdict.OutcomeIndeterminate, verdict.OutcomeIndeterminate,
+				verdict.OutcomeIndeterminate,
 			},
 		},
 		{
 			"decimal",
 			field.NewDecimalDeclaration(),
-			[]string{"MU-02", "MU-06"},
-			[]verdict.Outcome{verdict.OutcomePass, verdict.OutcomeIndeterminate},
+			[]string{"MU-02", "MU-06", "MU-20", "MU-22"},
+			[]verdict.Outcome{
+				verdict.OutcomePass, verdict.OutcomeIndeterminate,
+				verdict.OutcomeIndeterminate, verdict.OutcomeIndeterminate,
+			},
 		},
 		{
 			"percentage",
 			field.NewPercentageDeclaration(),
-			[]string{"MU-13"},
-			[]verdict.Outcome{verdict.OutcomeIndeterminate},
+			[]string{"MU-13", "MU-20"},
+			[]verdict.Outcome{verdict.OutcomeIndeterminate, verdict.OutcomeIndeterminate},
 		},
 		{
 			"quantity",
 			field.NewQuantityDeclaration(),
-			[]string{"MU-04"},
-			[]verdict.Outcome{verdict.OutcomeIndeterminate},
+			[]string{"MU-04", "MU-20"},
+			[]verdict.Outcome{verdict.OutcomeIndeterminate, verdict.OutcomeIndeterminate},
 		},
 	}
 	for _, tc := range cases {
@@ -369,6 +382,11 @@ func TestEvaluate_MU_V16(t *testing.T) {
 		"MU-06": verdict.OutcomeIndeterminate,
 		"MU-07": verdict.OutcomeIndeterminate,
 		"MU-14": verdict.OutcomeIndeterminate,
+		// MU-20 and MU-22 (§2.6.3 value-dependent) also gate on
+		// coercion; MU-21 is not applicable here, since this declaration
+		// carries scale: major_units.
+		"MU-20": verdict.OutcomeIndeterminate,
+		"MU-22": verdict.OutcomeIndeterminate,
 	}
 	if len(results) != len(wantOutcome) {
 		t.Fatalf("Evaluate returned %d results, want %d (%v)", len(results), len(wantOutcome), results)
@@ -782,10 +800,13 @@ func TestMustParseDecimal_Valid(t *testing.T) {
 }
 
 func TestMustParseDecimal_PanicsOnInvalidInput(t *testing.T) {
-	// mustParseDecimal's panic branch is never taken by its one real
-	// caller, one() (whose literal, "1", can never make decimal.Parse
-	// fail) -- but the branch must still be real and tested, not
-	// unreachable code the coverage bar should reject. This drives it
+	// mustParseDecimal's panic branch is never taken by any of its real
+	// callers (one(), and every fixed-literal constant function across
+	// this package -- see one()'s own doc comment in mu.go for the full
+	// list), since every one of them passes its own fixed literal, never
+	// caller-supplied text, and none of those literals can make
+	// decimal.Parse fail -- but the branch must still be real and tested,
+	// not unreachable code the coverage bar should reject. This drives it
 	// directly with text decimal.Parse itself rejects.
 	defer func() {
 		if recover() == nil {
