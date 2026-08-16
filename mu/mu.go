@@ -2,6 +2,7 @@ package mu
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/tidalsoft/verdict"
 	"github.com/tidalsoft/verdict/decimal"
@@ -74,17 +75,139 @@ type Input struct {
 	Registry            field.Registry
 	Tables              Tables
 	Vals                map[string]field.Value
+
+	// RawValue and HasRawValue are the field's own value in its original
+	// JSON shape, before SPEC-MU §2.6.1's decomposition/resolution/
+	// coercion pipeline runs -- unlike Value/Provenance/
+	// ValueCoercionFailed, which describe that pipeline's *output*.
+	// HasRawValue false means the field's path was absent from the
+	// arguments entirely; HasRawValue true with RawValue.IsNull() true
+	// means the path was present and held an explicit JSON null; anything
+	// else present is neither (MU-08's three-way distinction, SPEC-MU §5).
+	// RawValue and Value are deliberately allowed to disagree: a field the
+	// coercion pipeline could not read still has a RawValue (whatever the
+	// caller sent). MU-08 (null_vs_absent), MU-09 (numeric_string_
+	// coercion), and MU-16 (identifier_checksum) read RawValue instead of
+	// Value -- none of the three is value-dependent in SPEC-MU §2.6.3's
+	// sense (MU-09 explicitly cannot be, since it IS the report of the
+	// coercion Value/ValueCoercionFailed already describes -- see that
+	// field's own doc comment above), so none of them may be gated by, or
+	// read, the already-coerced Value at all. MU-09 in particular needs
+	// the pre-resolution literal text: Value/Provenance alone cannot
+	// reconstruct it, since resolution (§2.6.2) may already have turned a
+	// locale-ambiguous string into different decimal text before Value was
+	// computed.
+	RawValue    field.Value
+	HasRawValue bool
+
+	// EvaluatedAt and HasEvaluatedAt carry the request's injected
+	// evaluation timestamp (SPEC-SYS §14.1: the engine performs no clock
+	// access beyond this), consumed only by MU-11 (date_range_bound) to
+	// resolve a relative `not_before`/`not_after` bound (SPEC-MU §2.4.2's
+	// "now±Nu" grammar) against. HasEvaluatedAt false means the caller
+	// supplied none -- itself a real, reportable condition (vector
+	// MU-V100: a relative bound with no evaluated_at to resolve it against
+	// is INDETERMINATE), not something this package defaults or guesses
+	// at by substituting a clock read of its own.
+	EvaluatedAt    time.Time
+	HasEvaluatedAt bool
+
+	// HasReconcile and Reconcile carry the SPEC-MU §2.4.3 ruleset-level
+	// reconcile entry, if any, whose `total` names this Input's Field --
+	// MU-12 (total_reconciliation) is the one check in this package keyed
+	// off a declaration that is not part of field.Registry at all (see
+	// field.ReconcileDeclaration's own doc comment), so it needs its own
+	// carrier rather than reaching Registry.Lookup like every other check.
+	// HasReconcile false means no reconcile entry names this field as its
+	// total, which is checkMU12's own not-applicable gate (mirroring every
+	// other gated check in this package: MU-03's TargetCurrencyField,
+	// MU-05's UnitRequired, and so on).
+	//
+	// TotalResolved/TotalValue/TotalCoercionFailed and Components/
+	// Adjustments below are only meaningful when HasReconcile is true, and
+	// are the caller's already-resolved report of every path the
+	// reconcile entry names -- exactly as EmbeddedUnit and Vals are the
+	// caller's already-resolved report for a quantity's embedded unit and
+	// a check's sibling fields. This package performs no path resolution
+	// of its own (SPEC-MU §2.4.2's `[*]`-wildcard and `state.`-rooted path
+	// semantics are the caller's to apply), and no coercion of its own
+	// (SPEC-MU §2.6.2): every element below is already a coerced exact
+	// decimal, or already marked as having failed to coerce, or already
+	// marked as a miss.
+	HasReconcile bool
+	Reconcile    field.ReconcileDeclaration
+
+	// TotalResolved is false when the entry's `total` path did not
+	// resolve to a single scalar value at all -- either because the path
+	// is simply absent (vector MU-V109), or because it contains `[*]` and
+	// so resolved to a sequence rather than one value (vector MU-V115: "a
+	// total naming more than one location is not a total"). TotalValue and
+	// TotalCoercionFailed carry no meaning when this is false.
+	TotalResolved       bool
+	TotalValue          decimal.Decimal
+	TotalCoercionFailed bool
+
+	// Components is the resolved sequence at the entry's `components`
+	// path: one SequenceElement per matched array element (a components
+	// path containing no `[*]` is, in the caller's resolution, always a
+	// one-element sequence). Nil -- distinct from a non-nil empty slice --
+	// marks "the path matched no element of the request at all" (SPEC-MU
+	// §5: "the components path matches no element of the request," vector
+	// MU-V110), the one case this check treats as INDETERMINATE rather
+	// than an optional, zero-contributing addend -- unlike Adjustments
+	// below, for which the identical situation is exactly what "optional"
+	// means. A caller may therefore always represent "no match" as nil and
+	// never needs to construct the empty-but-non-nil variant, since
+	// SPEC-MU draws no distinction between them for this check.
+	Components []SequenceElement
+
+	// Adjustments is one resolved sequence per path
+	// Reconcile.Adjustments() names, in the same order. A nil entry at
+	// index i means that adjustment path resolved to no value at all --
+	// simply absent, or (SPEC-MU §5) "a wildcard matching no element of
+	// the request" -- which contributes zero to the reconciliation sum
+	// rather than making this check INDETERMINATE: "the adjustments list
+	// is a set of optional addends... making every such call INDETERMINATE
+	// would retire this check from the requests it was written for"
+	// (vector MU-V95). A non-nil entry containing one or more misses is a
+	// different case entirely (vector MU-V114) and is INDETERMINATE, via
+	// the same reasoning Components uses for a miss.
+	Adjustments [][]SequenceElement
+}
+
+// SequenceElement is one entry of a resolved SPEC-MU §2.4.2 sequence -- the
+// unit MU-12 (total_reconciliation) reads Input.Components and each of
+// Input.Adjustments' inner slices in terms of. A sequence element is
+// exactly one of three things, and this type represents all three without
+// a fourth, invalid combination being constructible by convention:
+//
+//   - a resolved, coerced value: Miss and CoercionFailed both false, Value
+//     meaningful.
+//   - a miss: the array element the wildcard matched was present, but the
+//     leaf path segments after `[*]` were not (SPEC-MU §2.4.2's own
+//     definition of a miss). Miss true; Value and CoercionFailed carry no
+//     meaning.
+//   - an uncoercible leaf: the leaf value was present but SPEC-MU §2.6.2's
+//     coercion could not turn it into an exact decimal (e.g. a component
+//     carrying the string "abc", vector MU-V74). CoercionFailed true, Miss
+//     false; Value carries no meaning.
+type SequenceElement struct {
+	Value          decimal.Decimal
+	CoercionFailed bool
+	Miss           bool
 }
 
 // Tables is the set of reference tables a single evaluation may consult.
 // It is constructed once by the caller and injected — never built inside a
-// check or in a hot path. Its zero value is safe: a zero CurrencyTable or
-// UnitRegistry lookup simply misses, so currency- and unit-dependent
-// checks evaluate to INDETERMINATE (or, for MU-04, FAIL -- an unrecognised
-// unit is unsafe to pass through) rather than panicking.
+// check or in a hot path. Its zero value is safe: a zero CurrencyTable,
+// CountryTable, or UnitRegistry lookup simply misses, so currency-,
+// country-, and unit-dependent checks evaluate to INDETERMINATE (or, for
+// MU-04, FAIL -- an unrecognised unit is unsafe to pass through) rather
+// than panicking.
 type Tables struct {
-	ISO4217 tables.CurrencyTable
-	Units   tables.UnitRegistry
+	ISO4217   tables.CurrencyTable
+	Countries tables.CountryTable
+	Units     tables.UnitRegistry
 }
 
 // OnFunc is the type of a single magnitude/unit check: a pure function of
@@ -128,25 +251,43 @@ const checkIDNoDeclaration = "MU-00"
 // retrying does not waste a round trip hitting a second error it could
 // have fixed in the same pass. (§2.6's one exception — an MU-09 FAIL
 // forcing other numeric checks on the same field to INDETERMINATE — is
-// MU-09's own concern; it has no check in this package yet and nothing
-// here anticipates it.)
+// enforced upstream of this package, at the point Input.ValueCoercionFailed
+// is set: §2.6.3's coercion gate is hoisted ahead of every value-dependent
+// check regardless of MU-09's own position in ID order, exactly as §2.6.3
+// itself requires.)
 //
-// A field with no declaration in the Registry evaluates to a single
+// A field with no declaration in the Registry and no matching
+// Input.Reconcile entry (HasReconcile false) evaluates to a single
 // INDETERMINATE result carrying checkIDNoDeclaration — never a panic,
 // never a guessed kind, and never zero results: "no declaration" is
 // itself the one thing worth reporting when no check ran at all, so it is
-// reported as a one-element slice rather than an empty one. A declared
-// kind this package has no checks for (timestamp, identifier) is an
-// error: the caller asked mu to evaluate a field mu cannot.
+// reported as a one-element slice rather than an empty one. A field with
+// no declaration but a matching reconcile entry is a real, if narrow,
+// exception (SPEC-MU §2.3) — see the HasReconcile branch below. Every
+// declared kind (money, quantity, timestamp, percentage, decimal,
+// identifier) has at least one check in this package.
 //
 // Beyond that pre-dispatch case, the returned slice holds one Result per
 // *applicable* check only (SPEC-MU §2.5) — see OnFunc's doc comment for
 // what distinguishes "not applicable" (no entry at all) from
 // INDETERMINATE (a real entry reporting a blind spot).
 func Evaluate(in Input) ([]verdict.Result, error) {
-	decl, ok := in.Registry.Lookup(in.Field)
-	if !ok {
-		return []verdict.Result{mustResult(checkIDNoDeclaration, verdict.OutcomeIndeterminate)}, nil
+	decl, hasDecl := in.Registry.Lookup(in.Field)
+	if !hasDecl {
+		if !in.HasReconcile {
+			return []verdict.Result{mustResult(checkIDNoDeclaration, verdict.OutcomeIndeterminate)}, nil
+		}
+		// SPEC-MU §2.3: "The engine evaluates exactly those argument
+		// paths for which a declaration exists, together with the paths
+		// named by the ruleset-level declarations of section 2.4.3." A
+		// reconcile entry's total path is evaluated even without a
+		// field.Registry entry of its own -- the reconcile entry itself
+		// is what makes it evaluable, and MU-12 is the only check in this
+		// package that can apply to a field with no declared kind at all.
+		// checkIDNoDeclaration (MU-00) must not fire here: this field is
+		// not undeclared in the sense that reporting identifier names --
+		// it is declared, just not via field.Registry.
+		return evaluateChecks(in, []OnFunc{checkMU12})
 	}
 	checks, ok := checksFor(decl.Kind())
 	if !ok {
@@ -170,9 +311,10 @@ func notApplicable() (verdict.Result, bool, error) {
 // checksFor returns the checks a field of the given kind carries, in
 // ascending check-ID order — SPEC-MU §2.6: "every other applicable check,
 // in ascending ID order" — and whether any checks apply at
-// all. The second return value is false for kinds this package has no
-// checks for (timestamp, identifier, and the zero value). It is a
-// function rather than a package-level map because this module forbids
+// all. The second return value is false only for field.KindUnspecified,
+// the zero value — every real Kind this package defines has at least one
+// check. It is a function rather than a package-level map because this
+// module forbids
 // package-level state (gochecknoglobals); the switch is the dispatch
 // table.
 //
@@ -193,18 +335,45 @@ func checksFor(kind field.Kind) ([]OnFunc, bool) {
 	var checks []OnFunc
 	switch kind {
 	case field.KindMoney:
-		checks = []OnFunc{checkMU01, checkMU02, checkMU03, checkMU06, checkMU07, checkMU14}
+		// Ascending ID order: 01, 02, 03, 06, 07, 08, 09, 14. MU-08
+		// (every kind) and MU-09 (money, decimal, percentage) both self-
+		// gate to not-applicable when their own declared attribute or
+		// request shape is absent (see checkMU08, checkMU09), exactly as
+		// MU-03/MU-05/MU-07/MU-15 already do elsewhere in this file's
+		// dispatch -- so listing them unconditionally here is safe for
+		// every money field, not only ones that declare null_semantics
+		// or receive a string value. MU-12 (reconcile.go) is likewise
+		// listed unconditionally on every kind below: it self-gates on
+		// Input.HasReconcile, which is data-dependent, not kind-dependent
+		// (SPEC-MU §2.5.1: MU-12's "Applies to" is ruleset-level, not one
+		// of the six kinds).
+		checks = []OnFunc{checkMU01, checkMU02, checkMU03, checkMU06, checkMU07, checkMU08, checkMU09, checkMU12, checkMU14}
 	case field.KindDecimal:
-		// SPEC-MU §2.5.1's trigger matrix lists MU-06 (sign_convention) and
-		// MU-07 (range_bound) as applying to `decimal` exactly as to
-		// `money` -- alongside MU-02, which this dispatch already carried.
-		checks = []OnFunc{checkMU02, checkMU06, checkMU07}
+		// SPEC-MU §2.5.1's trigger matrix lists MU-06 (sign_convention),
+		// MU-07 (range_bound), and MU-09 (numeric_string_coercion) as
+		// applying to `decimal` exactly as to `money` -- alongside MU-02,
+		// which this dispatch already carried. Ascending ID order: 02,
+		// 06, 07, 08, 09, 12.
+		checks = []OnFunc{checkMU02, checkMU06, checkMU07, checkMU08, checkMU09, checkMU12}
 	case field.KindPercentage:
-		// MU-07 also applies to `percentage` (bounds in the declared
-		// domain's units), ahead of MU-13 in ascending ID order.
-		checks = []OnFunc{checkMU07, checkMU13}
+		// MU-07 and MU-09 also apply to `percentage` (MU-07's bounds in
+		// the declared domain's units; MU-09 wherever the value arrived
+		// as a string), ahead of MU-13 in ascending ID order: 07, 08, 09,
+		// 12, 13.
+		checks = []OnFunc{checkMU07, checkMU08, checkMU09, checkMU12, checkMU13}
 	case field.KindQuantity:
-		checks = []OnFunc{checkMU04, checkMU05, checkMU07, checkMU15}
+		// MU-09 does not apply to `quantity` (SPEC-MU §2.5.1's Applies-to
+		// set for MU-09 is money, decimal, percentage only) -- a
+		// quantity's own string decomposition (§2.6.1) is not the
+		// locale-ambiguity question MU-09 answers. Ascending ID order:
+		// 04, 05, 07, 08, 12, 15.
+		checks = []OnFunc{checkMU04, checkMU05, checkMU07, checkMU08, checkMU12, checkMU15}
+	case field.KindTimestamp:
+		// Ascending ID order: 08, 10, 11, 12.
+		checks = []OnFunc{checkMU08, checkMU10, checkMU11, checkMU12}
+	case field.KindIdentifier:
+		// Ascending ID order: 08, 12, 16.
+		checks = []OnFunc{checkMU08, checkMU12, checkMU16}
 	}
 	return checks, len(checks) > 0
 }
@@ -296,6 +465,18 @@ func moneyDeclaration(in Input) (field.MoneyDeclaration, bool) {
 // it must look up a second time in a branch that cannot fail.
 func (t Tables) resolveCurrency(code string) (tables.Currency, bool) {
 	return t.ISO4217.Lookup(asciiUpper(code))
+}
+
+// resolveCountry case-folds code's ASCII letters to upper case and looks
+// the result up in the injected ISO 3166-1 alpha-2 table, mirroring
+// resolveCurrency exactly -- MU-16's iso3166_alpha2 scheme is the one
+// consumer, and SPEC-MU §5 states the identical reasoning for it that
+// resolveCurrency's own doc comment gives for currency codes: "usd" and
+// "USD" name one currency, and a code this table does not recognise must
+// resolve as not-a-member rather than a manufactured false negative from
+// letter case (vector MU-V93).
+func (t Tables) resolveCountry(code string) (tables.Country, bool) {
+	return t.Countries.Lookup(asciiUpper(code))
 }
 
 // asciiUpper upper-cases only the ASCII letters 'a'-'z' in s, leaving
@@ -501,10 +682,12 @@ func passResult(checkID string) (verdict.Result, bool, error) {
 }
 
 // checkMU01, checkMU02, checkMU03, checkMU04, checkMU05, checkMU06,
-// checkMU07, checkMU13, checkMU14, and checkMU15 are each implemented in
+// checkMU07, checkMU08, checkMU09, checkMU10, checkMU11, checkMU12,
+// checkMU13, checkMU14, checkMU15, and checkMU16 are each implemented in
 // their own file (scale.go, precision.go, currency.go, dimension.go,
-// absent.go, sign.go, range.go, percentage.go, exponent.go, and
-// conversion.go respectively), alongside that file's tests.
+// absent.go, sign.go, range.go, null.go, numeric_string.go, timestamp.go,
+// daterange.go, reconcile.go, percentage.go, exponent.go, conversion.go,
+// and identifier.go respectively), alongside that file's tests.
 // resolveQuantityUnit (unit.go) is the one shared resolution helper every
 // quantity check (MU-04, MU-05, MU-07's quantity branch, MU-15) calls to
 // resolve a field's unit from its two possible sources -- see that file's

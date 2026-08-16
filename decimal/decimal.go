@@ -2,6 +2,7 @@ package decimal
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/cockroachdb/apd/v3"
 )
@@ -69,6 +70,29 @@ type Decimal struct {
 // need to know how many decimal places the caller actually supplied, not a
 // mathematically-reduced count.
 func Parse(s string) (Decimal, error) {
+	// apd accepts a trailing point ("5." parses as 5); SPEC-MU §2.6.1's
+	// grammar does not. Its significand is `1*DIGIT [ "." 1*DIGIT ]` or
+	// `"." 1*DIGIT` -- at least one digit after the point, always -- and
+	// the prose spells the same rule out: "no trailing point". A string
+	// this function accepts is decimal text to every rule that consumes
+	// it, so a leniency here is not confined to one check: MU-09 reported
+	// PASS for "5." on the strength of it parsing, when "5." matches none
+	// of MU-09's enumerated shapes and owes the caller INDETERMINATE.
+	// Rejecting it at the one place that defines what decimal text means
+	// keeps every consumer agreeing with the specification rather than
+	// with apd. A leading point is not affected: ".5" is decimal text
+	// under the second alternative and still parses.
+	//
+	// The test is "a point must be followed by a digit", not "the string
+	// must not end in a point". Those differ whenever an exponent follows:
+	// "5.e3" ends in "3", but its significand is still "5." and is still
+	// not decimal text. An end-of-string test lets that through, and it
+	// reaches MU-09 as a PASS exactly as "5." did.
+	if i := strings.IndexByte(s, '.'); i >= 0 {
+		if i+1 >= len(s) || s[i+1] < '0' || s[i+1] > '9' {
+			return Decimal{}, fmt.Errorf("decimal: parse %q: a decimal point must be followed by a digit", s)
+		}
+	}
 	d, _, err := apd.NewFromString(s)
 	if err != nil {
 		return Decimal{}, fmt.Errorf("decimal: parse %q: %w", s, err)

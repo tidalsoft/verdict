@@ -306,12 +306,6 @@ func discoverImplementedVectorIDs(t *testing.T) map[string]bool {
 // covers every vector that gap accounts for, rather than one unique
 // sentence per vector ID.
 const (
-	skipReasonMU08NullSemantics    = "MU-08 null-semantics distinctness checks are not implemented"
-	skipReasonMU09NumericShape     = "MU-09 numeric field shape/ambiguity checks are not implemented"
-	skipReasonMU10TimestampEncode  = "MU-10 timestamp encoding checks are not implemented"
-	skipReasonMU11TimestampBounds  = "MU-11 timestamp bound (not_before/not_after) checks are not implemented"
-	skipReasonMU12ReconcileEdge    = "MU-12 reconciliation edge cases beyond a flat sum and tolerance -- uncoercible components, absent adjustments, unresolvable or sequence-valued totals -- are not implemented"
-	skipReasonMU16Identifier       = "MU-16 identifier scheme checks (Luhn, ISO 4217 membership, unknown or absent scheme) are not implemented"
 	skipReasonMU20Outlier          = "MU-20 statistical outlier detection is not implemented"
 	skipReasonMU21Promotion        = "MU-21 statistical promotion-threshold checks are not implemented"
 	skipReasonMU22DuplicateEntity  = "MU-22 duplicate/near-duplicate entity detection is not implemented"
@@ -339,15 +333,9 @@ func skippedConformanceVectors() map[string]string {
 		}
 	}
 
-	add(skipReasonMU09NumericShape, 12, 13, 14, 15, 51)
-	add(skipReasonMU10TimestampEncode, 17, 18, 19, 20, 21, 52, 53, 54, 55)
-	add(skipReasonMU11TimestampBounds, 71, 72, 73, 99, 100)
-	add(skipReasonMU12ReconcileEdge, 74, 95, 96, 109, 110, 114, 115)
-	add(skipReasonMU16Identifier, 35, 36, 37, 93, 103)
 	add(skipReasonMU20Outlier, 38, 39, 86, 87)
 	add(skipReasonMU21Promotion, 40, 41, 111, 112)
 	add(skipReasonMU22DuplicateEntity, 88, 89, 90)
-	add(skipReasonMU08NullSemantics, 69, 70)
 
 	for n := 1; n <= 53; n++ {
 		skips[fmt.Sprintf("PG-V%d", n)] = skipReasonSPECPGNotImplemented

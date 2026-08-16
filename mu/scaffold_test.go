@@ -73,13 +73,13 @@ func TestChecksFor_DispatchTable(t *testing.T) {
 		want []OnFunc
 		ok   bool
 	}{
-		{"money", field.KindMoney, []OnFunc{checkMU01, checkMU02, checkMU03, checkMU06, checkMU07, checkMU14}, true},
-		{"decimal", field.KindDecimal, []OnFunc{checkMU02, checkMU06, checkMU07}, true},
-		{"percentage", field.KindPercentage, []OnFunc{checkMU07, checkMU13}, true},
-		{"quantity", field.KindQuantity, []OnFunc{checkMU04, checkMU05, checkMU07, checkMU15}, true},
+		{"money", field.KindMoney, []OnFunc{checkMU01, checkMU02, checkMU03, checkMU06, checkMU07, checkMU08, checkMU09, checkMU12, checkMU14}, true},
+		{"decimal", field.KindDecimal, []OnFunc{checkMU02, checkMU06, checkMU07, checkMU08, checkMU09, checkMU12}, true},
+		{"percentage", field.KindPercentage, []OnFunc{checkMU07, checkMU08, checkMU09, checkMU12, checkMU13}, true},
+		{"quantity", field.KindQuantity, []OnFunc{checkMU04, checkMU05, checkMU07, checkMU08, checkMU12, checkMU15}, true},
+		{"timestamp", field.KindTimestamp, []OnFunc{checkMU08, checkMU10, checkMU11, checkMU12}, true},
+		{"identifier", field.KindIdentifier, []OnFunc{checkMU08, checkMU12, checkMU16}, true},
 		{"unspecified", field.KindUnspecified, nil, false},
-		{"timestamp", field.KindTimestamp, nil, false},
-		{"identifier", field.KindIdentifier, nil, false},
 	}
 	// This table already runs every field.Kind this package defines, so
 	// it doubles as the regression guard for checksFor's ok == len(checks)
@@ -392,14 +392,32 @@ func TestEvaluate_MU_V16(t *testing.T) {
 	}
 }
 
+// fakeUnspecifiedDeclaration implements field.Declaration and reports
+// field.KindUnspecified from Kind(), a combination no constructor in the
+// field package can produce -- every concrete Declaration type there
+// returns its own fixed, non-zero Kind (see field.Kind's own doc comment).
+// Now that timestamp and identifier both carry real checks (MU-10/MU-11
+// and MU-16 respectively), field.KindUnspecified is the only Kind
+// checksFor reports no checks for, and this is the only way left to
+// construct a Declaration that reaches Evaluate's "no checks for field
+// kind" error path at all -- field.Declaration is satisfied structurally,
+// so a type outside the field package implementing its two methods is a
+// legitimate field.Declaration.
+type fakeUnspecifiedDeclaration struct{}
+
+func (fakeUnspecifiedDeclaration) Kind() field.Kind { return field.KindUnspecified }
+func (fakeUnspecifiedDeclaration) NullSemantics() (field.NullSemantics, bool) {
+	return field.NullSemanticsUnspecified, false
+}
+
 func TestEvaluate_UnknownKind(t *testing.T) {
 	in := Input{
 		Field:    "arguments.amount",
-		Registry: mustRegistry(t, field.NewTimestampDeclaration()),
+		Registry: mustRegistry(t, fakeUnspecifiedDeclaration{}),
 	}
 	_, err := Evaluate(in)
 	if err == nil {
-		t.Fatal("Evaluate with timestamp kind succeeded, want error")
+		t.Fatal("Evaluate with unspecified kind succeeded, want error")
 	}
 	if !strings.Contains(err.Error(), "no checks") {
 		t.Errorf("error %q missing context", err.Error())

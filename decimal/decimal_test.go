@@ -541,3 +541,37 @@ func TestDecimal_String_ErrorWrapping(t *testing.T) {
 		t.Errorf("Parse error does not wrap an underlying cause: %v", err)
 	}
 }
+
+// TestParse_RejectsTrailingPoint pins SPEC-MU §2.6.1's grammar against apd's
+// own leniency. The significand is `1*DIGIT [ "." 1*DIGIT ]` or `"." 1*DIGIT`
+// -- a point must always be followed by a digit -- and the prose says "no
+// trailing point" outright. apd accepts "5." and returns 5, so without this
+// rejection every rule consuming decimal text inherits a value the
+// specification says is not a number: MU-09 read "5." as parsing cleanly and
+// reported PASS, where the string matches none of its enumerated shapes and
+// owes the caller INDETERMINATE. A leading point is a different case and
+// stays valid.
+func TestParse_RejectsTrailingPoint(t *testing.T) {
+	if _, err := Parse("5."); err == nil {
+		t.Error("Parse(\"5.\") succeeded, want an error: a trailing point is not decimal text")
+	}
+	if _, err := Parse("-0."); err == nil {
+		t.Error("Parse(\"-0.\") succeeded, want an error")
+	}
+	if _, err := Parse("."); err == nil {
+		t.Error("Parse(\".\") succeeded, want an error")
+	}
+	// An exponent after the point does not rescue the significand. "5.e3"
+	// ends in a digit, so an end-of-string test misses it, but its
+	// significand is still "5." and still is not decimal text.
+	for _, s := range []string{"5.e3", "5.E3", "1.e0", "-1.e-2"} {
+		if _, err := Parse(s); err == nil {
+			t.Errorf("Parse(%q) succeeded, want an error: the point is not followed by a digit", s)
+		}
+	}
+	for _, s := range []string{".5", "-.5", "5.0", "5", "+5", "5e-3", "100e-2"} {
+		if _, err := Parse(s); err != nil {
+			t.Errorf("Parse(%q) failed with %v, want success: this form is decimal text", s, err)
+		}
+	}
+}
